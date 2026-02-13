@@ -138,17 +138,17 @@ class AnclaChat {
     }
     
     this.model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       systemInstruction: ANCLA_SYSTEM_PROMPT,
     });
     
     this.chat = this.model.startChat({
       history: [],
       generationConfig: {
-        temperature: 0.7,
+        temperature: 0.8,
         topP: 0.95,
         topK: 40,
-        maxOutputTokens: 200,
+        maxOutputTokens: 1500,
       },
     });
   }
@@ -159,11 +159,20 @@ class AnclaChat {
     distortions: CognitiveDistortion[];
   }> {
     try {
+      console.log('📤 Enviando mensaje a Gemini:', userMessage);
+      
       const trigger = detectTriggers(userMessage);
       const distortions = detectDistortions(userMessage);
+      
+      console.log('🔍 Trigger detectado:', trigger);
+      console.log('🧠 Distorsiones detectadas:', distortions);
 
+      console.log('⏳ Llamando a Gemini API...');
       const result = await this.chat.sendMessage(userMessage);
+      console.log('✅ Respuesta recibida de Gemini');
+      
       const responseText = result.response.text();
+      console.log('📥 Texto de respuesta:', responseText);
 
       // Check if AI added triggers in response
       let detectedTrigger = trigger;
@@ -222,7 +231,7 @@ export const anclaChat = new AnclaChat();
 // ============= DAILY CONTENT GENERATOR =============
 export async function generateDailyContent(): Promise<DailyContent | null> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
 
     const prompt = `Actúa como un curador de arte y filósofo estoico. Genera contenido de bienestar:
 
@@ -271,7 +280,9 @@ RESPONDE SOLO CON ESTE FORMATO JSON (sin markdown, sin bloques de código):
 // ============= BREATHING GUIDE =============
 export async function generateBreathingGuide(): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-2.5-flash'
+    });
 
     const prompt = `Genera una guía breve de respiración 4-4-4-4 (inhala 4, retén 4, exhala 4, retén 4).
 Usa lenguaje calmado, presente, en segunda persona.
@@ -290,7 +301,7 @@ Ejemplo: "Inhala profundamente por la nariz... dos... tres... cuatro. Retén el 
 // ============= welcome PHRASE =============
 export async function getWelcomePhrase(): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
 
     const result = await model.generateContent(
       'Genera UNA frase corta de bienvenida para una app de bienestar emocional. Máximo 10 palabras. Sin comillas. En español.'
@@ -306,7 +317,7 @@ export async function getWelcomePhrase(): Promise<string> {
 // ============= POEM GENERATOR FOR SELF-WORTH =============
 export async function generateSelfWorthPoem(): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
 
     const prompt = `Escribe un poema en prosa muy corto (máx 60 palabras) dirigido a alguien que siente que "no es suficiente". 
 Tono cálido, cercano, no condescendiente. 
