@@ -260,7 +260,7 @@ export const profileService = {
     return data; // Puede ser null si no existe
   },
 
-  async createProfile(userId: string, name?: string) {
+  async createProfile(userId: string) {
     const { data, error } = await supabase
       .from('user_profiles')
       .insert({

@@ -83,7 +83,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         // Si el usuario existe pero no tiene perfil, crearlo
         if (!profile) {
           console.log('Perfil no encontrado, creando uno nuevo...');
-          profile = await profileService.createProfile(user.id, user.user_metadata?.name);
+          profile = await profileService.createProfile(user.id);
         }
         
         set({ user: user as any, profile, loading: false });

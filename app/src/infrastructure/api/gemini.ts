@@ -4,6 +4,19 @@ import { ENV } from '@/infrastructure/config/environment';
 
 const API_KEY = ENV.GEMINI_API_KEY;
 
+// ⚠️ IMPORTANTE: LÍMITES DE CUOTA
+// Esta API key solo tiene acceso a modelos con límite de 20 RPD:
+// - gemini-3-flash-preview: 1/20 usado (19 quedan hoy) ← ACTUAL
+// - gemini-2.5-flash: 5/20 usado (15 quedan hoy)
+// - gemini-flash-latest: Apunta a uno de los anteriores
+//
+// TODOS los modelos con 1.5K RPD (Pro, 2.0-flash, etc.) dan error 429 (no disponibles)
+//
+// 🚨 PARA PRODUCCIÓN:
+// 1. Crear nueva API key en https://aistudio.google.com/apikey
+// 2. O aceptar estos límites (20 solicitudes/día total)
+// 3. O implementar billing en Google AI Studio
+
 if (!API_KEY) {
   console.warn('⚠️ Gemini API key missing. AI features will be limited.');
 }
@@ -130,7 +143,7 @@ export function detectTriggers(text: string): ChatMessage['trigger'] | null {
 // ============= ANCLA CHAT SERVICE =============
 class AnclaChat {
   private chat: any;
-  private model: any;
+  private readonly model: any;
 
   constructor() {
     if (!API_KEY) {
@@ -138,12 +151,12 @@ class AnclaChat {
     }
     
     this.model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      systemInstruction: ANCLA_SYSTEM_PROMPT,
+      model: 'gemini-3-flash-preview'
     });
     
     this.chat = this.model.startChat({
       history: [],
+      systemInstruction: ANCLA_SYSTEM_PROMPT,
       generationConfig: {
         temperature: 0.8,
         topP: 0.95,
@@ -186,9 +199,9 @@ class AnclaChat {
 
       // Clean response (remove trigger markers)
       const cleanResponse = responseText
-        .replace(/\[TRIGGER_VAULT\]/g, '')
-        .replace(/\[TRIGGER_PANIC_MODE\]/g, '')
-        .replace(/\[TRIGGER_EMERGENCY_CONTACT\]/g, '')
+        .replaceAll('[TRIGGER_VAULT]', '')
+        .replaceAll('[TRIGGER_PANIC_MODE]', '')
+        .replaceAll('[TRIGGER_EMERGENCY_CONTACT]', '')
         .trim();
 
       return {
@@ -231,7 +244,7 @@ export const anclaChat = new AnclaChat();
 // ============= DAILY CONTENT GENERATOR =============
 export async function generateDailyContent(): Promise<DailyContent | null> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
     const prompt = `Actúa como un curador de arte y filósofo estoico. Genera contenido de bienestar:
 
@@ -281,7 +294,7 @@ RESPONDE SOLO CON ESTE FORMATO JSON (sin markdown, sin bloques de código):
 export async function generateBreathingGuide(): Promise<string> {
   try {
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.5-flash'
+      model: 'gemini-3-flash-preview'
     });
 
     const prompt = `Genera una guía breve de respiración 4-4-4-4 (inhala 4, retén 4, exhala 4, retén 4).
@@ -301,7 +314,7 @@ Ejemplo: "Inhala profundamente por la nariz... dos... tres... cuatro. Retén el 
 // ============= welcome PHRASE =============
 export async function getWelcomePhrase(): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
     const result = await model.generateContent(
       'Genera UNA frase corta de bienvenida para una app de bienestar emocional. Máximo 10 palabras. Sin comillas. En español.'
@@ -317,7 +330,7 @@ export async function getWelcomePhrase(): Promise<string> {
 // ============= POEM GENERATOR FOR SELF-WORTH =============
 export async function generateSelfWorthPoem(): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
 
     const prompt = `Escribe un poema en prosa muy corto (máx 60 palabras) dirigido a alguien que siente que "no es suficiente". 
 Tono cálido, cercano, no condescendiente. 

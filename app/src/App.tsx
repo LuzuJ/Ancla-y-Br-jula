@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/application/store';
 import { initDB } from '@/infrastructure/database/offline';
 
@@ -173,19 +173,18 @@ interface NavButtonProps {
   primary?: boolean;
 }
 
-const NavButton: React.FC<NavButtonProps> = ({ icon, label, active, onClick, primary }) => {
+const NavButton: React.FC<NavButtonProps> = ({ icon, label, active, onClick, primary }: NavButtonProps) => {
+  const getButtonClass = () => {
+    if (primary) {
+      return active ? 'text-calm-accent scale-110' : 'text-gray-400 hover:text-calm-accent';
+    }
+    return active ? 'text-calm-accent' : 'text-gray-500 hover:text-gray-300';
+  };
+
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center gap-1 py-2 px-3 rounded-xl transition-all ${
-        primary
-          ? active
-            ? 'text-calm-accent scale-110'
-            : 'text-gray-400 hover:text-calm-accent'
-          : active
-          ? 'text-calm-accent'
-          : 'text-gray-500 hover:text-gray-300'
-      }`}
+      className={`flex flex-col items-center justify-center gap-1 py-2 px-3 rounded-xl transition-all ${getButtonClass()}`}
     >
       {icon}
       <span className="text-xs font-medium">{label}</span>
