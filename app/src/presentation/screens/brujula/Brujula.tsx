@@ -30,18 +30,20 @@ const Brujula: React.FC = () => {
 
       // Try online
       if (isOnline()) {
-        const existingContent = await contentService.getTodayContent();
-        if (existingContent) {
-          setContent(existingContent);
-          await offlineContent.save(existingContent);
-          setStatus(LoadingState.SUCCESS);
-          return;
-        }
+        // Skip Supabase check - daily_content table not created yet
+        // const existingContent = await contentService.getTodayContent();
+        // if (existingContent) {
+        //   setContent(existingContent);
+        //   await offlineContent.save(existingContent);
+        //   setStatus(LoadingState.SUCCESS);
+        //   return;
+        // }
 
         // Generate new content
         const newContent = await generateDailyContent();
         if (newContent) {
-          await contentService.saveContent(newContent);
+          // Skip Supabase save - daily_content table not created yet
+          // await contentService.saveContent(newContent);
           await offlineContent.save(newContent);
           setContent(newContent);
           setStatus(LoadingState.SUCCESS);

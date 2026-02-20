@@ -10,7 +10,8 @@ export const ENV = {
   SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL || '',
   SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
   
-  // Gemini AI
+  // AI Providers
+  DEEPSEEK_API_KEY: import.meta.env.VITE_DEEPSEEK_API_KEY || '',
   GEMINI_API_KEY: import.meta.env.VITE_GEMINI_API_KEY || '',
   
   // App Info
@@ -28,7 +29,7 @@ export function validateEnvironment(): void {
   
   if (!ENV.SUPABASE_URL) missingVars.push('VITE_SUPABASE_URL');
   if (!ENV.SUPABASE_ANON_KEY) missingVars.push('VITE_SUPABASE_ANON_KEY');
-  if (!ENV.GEMINI_API_KEY) missingVars.push('VITE_GEMINI_API_KEY');
+  if (!ENV.DEEPSEEK_API_KEY && !ENV.GEMINI_API_KEY) missingVars.push('VITE_DEEPSEEK_API_KEY or VITE_GEMINI_API_KEY');
   
   if (missingVars.length > 0) {
     console.error('❌ Missing environment variables:', missingVars.join(', '));

@@ -1,17 +1,12 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { ChatMessage, CognitiveDistortion, DailyContent } from '@/domain/models';
 import { ENV } from '@/infrastructure/config/environment';
 
-const API_KEY = ENV.GEMINI_API_KEY;
-
-// ⚠️ MODELO ACTUAL: gemini-2.0-flash-exp
-// Este es el modelo experimental de Gemini 2.0 con mejor capacidad multimodal
+const API_KEY = ENV.DEEPSEEK_API_KEY;
+const BASE_URL = 'https://api.deepseek.com';
 
 if (!API_KEY) {
-  console.warn('⚠️ Gemini API key missing. AI features will be limited.');
+  console.warn('⚠️ DeepSeek API key missing. AI features will be limited.');
 }
-
-const genAI = new GoogleGenerativeAI(API_KEY);
 
 // ============= ANCLA TCC SYSTEM PROMPT =============
 const ANCLA_SYSTEM_PROMPT = `### ROL
@@ -76,32 +71,26 @@ Ancla: [TRIGGER_EMERGENCY_CONTACT] "Escúchame con atención: lo que estás sint
 export function detectDistortions(text: string): CognitiveDistortion[] {
   const distortions: CognitiveDistortion[] = [];
 
-  // Generalization keywords
   if (/(siempre|nunca|todo|todos|nadie|nada)/i.test(text)) {
     distortions.push('generalization');
   }
 
-  // All-or-nothing keywords
   if (/(perfecto|completamente|totalmente|100%|absolutamente)/i.test(text)) {
     distortions.push('all-or-nothing');
   }
 
-  // Catastrophizing
   if (/(voy a morir|me voy a morir|es el fin|todo está perdido|desastre|terrible|horrible)/i.test(text)) {
     distortions.push('catastrophizing');
   }
 
-  // Self-deprecation
   if (/(no valgo|soy un estorbo|soy un fracaso|no sirvo|soy inútil|no merezco)/i.test(text)) {
     distortions.push('self-deprecation');
   }
 
-  // Fortune-telling
   if (/(va a salir mal|sé que|seguro que|va a pasar)/i.test(text)) {
     distortions.push('fortune-telling');
   }
 
-  // Mind-reading
   if (/(todos piensan|me juzgan|creen que soy|piensan que)/i.test(text)) {
     distortions.push('mind-reading');
   }
@@ -111,18 +100,14 @@ export function detectDistortions(text: string): CognitiveDistortion[] {
 
 // ============= TRIGGER DETECTOR =============
 export function detectTriggers(text: string): ChatMessage['trigger'] | null {
-
-  // Emergency keywords
   if (/(suicid|suicidio|matarme|hacerme daño|terminar con todo|no quiero vivir)/i.test(text)) {
     return 'EMERGENCY_CONTACT';
   }
 
-  // Panic keywords
   if (/(no puedo respirar|me ahogo|me voy a morir|pecho|corazón late|pánico|ataque)/i.test(text)) {
     return 'PANIC_MODE';
   }
 
-  // Vault keywords  
   if (/(no valgo|nadie me quiere|soy un estorbo|no merezco|soy basura)/i.test(text)) {
     return 'VAULT';
   }
@@ -130,30 +115,49 @@ export function detectTriggers(text: string): ChatMessage['trigger'] | null {
   return null;
 }
 
+// ============= DEEPSEEK API HELPER =============
+async function callDeepSeek(messages: Array<{ role: string; content: string }>, temperature = 0.8) {
+  if (!API_KEY) {
+    throw new Error('DeepSeek API key is missing');
+  }
+
+  const response = await fetch(`${BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages,
+      temperature,
+      max_tokens: 1500,
+      stream: false
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(`DeepSeek API error: ${response.status} - ${JSON.stringify(error)}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
+
 // ============= ANCLA CHAT SERVICE =============
 class AnclaChat {
-  private chat: any;
-  private readonly model: any;
+  private conversationHistory: Array<{ role: string; content: string }> = [];
 
   constructor() {
     if (!API_KEY) {
-      console.error('❌ Gemini API key is missing! Chat will not work.');
+      console.error('❌ DeepSeek API key is missing! Chat will not work.');
     }
     
-    this.model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      systemInstruction: ANCLA_SYSTEM_PROMPT,
-    });
-    
-    this.chat = this.model.startChat({
-      history: [],
-      generationConfig: {
-        temperature: 0.8,
-        topP: 0.95,
-        topK: 40,
-        maxOutputTokens: 1500,
-      },
-    });
+    // Initialize with system message
+    this.conversationHistory = [
+      { role: 'system', content: ANCLA_SYSTEM_PROMPT }
+    ];
   }
 
   async sendMessage(userMessage: string): Promise<{
@@ -162,7 +166,7 @@ class AnclaChat {
     distortions: CognitiveDistortion[];
   }> {
     try {
-      console.log('📤 Enviando mensaje a Gemini:', userMessage);
+      console.log('📤 Enviando mensaje a DeepSeek:', userMessage);
       
       const trigger = detectTriggers(userMessage);
       const distortions = detectDistortions(userMessage);
@@ -170,12 +174,22 @@ class AnclaChat {
       console.log('🔍 Trigger detectado:', trigger);
       console.log('🧠 Distorsiones detectadas:', distortions);
 
-      console.log('⏳ Llamando a Gemini API...');
-      const result = await this.chat.sendMessage(userMessage);
-      console.log('✅ Respuesta recibida de Gemini');
-      
-      const responseText = result.response.text();
+      // Add user message to history
+      this.conversationHistory.push({
+        role: 'user',
+        content: userMessage
+      });
+
+      console.log('⏳ Llamando a DeepSeek API...');
+      const responseText = await callDeepSeek(this.conversationHistory);
+      console.log('✅ Respuesta recibida de DeepSeek');
       console.log('📥 Texto de respuesta:', responseText);
+
+      // Add assistant response to history
+      this.conversationHistory.push({
+        role: 'assistant',
+        content: responseText
+      });
 
       // Check if AI added triggers in response
       let detectedTrigger = trigger;
@@ -201,18 +215,13 @@ class AnclaChat {
       };
     } catch (error: any) {
       console.error('❌ Ancla chat error:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        status: error?.status,
-        statusText: error?.statusText,
-        response: error?.response
-      });
+      console.error('Error details:', error?.message);
       
       let errorMessage = 'Lo siento, el espejo se ha empañado un momento. Respira profundo e intenta de nuevo.';
       
       if (error?.message?.includes('API key')) {
         errorMessage = 'Parece que falta la configuración. Revisa la consola del navegador.';
-      } else if (error?.status === 429) {
+      } else if (error?.message?.includes('429')) {
         errorMessage = 'He recibido muchas solicitudes. Espera un momento e intenta de nuevo.';
       }
       
@@ -225,15 +234,9 @@ class AnclaChat {
   }
 
   resetChat() {
-    this.chat = this.model.startChat({ 
-      history: [],
-      generationConfig: {
-        temperature: 0.8,
-        topP: 0.95,
-        topK: 40,
-        maxOutputTokens: 1500,
-      },
-    });
+    this.conversationHistory = [
+      { role: 'system', content: ANCLA_SYSTEM_PROMPT }
+    ];
   }
 }
 
@@ -242,8 +245,6 @@ export const anclaChat = new AnclaChat();
 // ============= DAILY CONTENT GENERATOR =============
 export async function generateDailyContent(): Promise<DailyContent | null> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
     const prompt = `Actúa como un curador de arte y filósofo estoico. Genera contenido de bienestar:
 
 1. UNA CITA ESTOICA real y poco conocida (incluye autor).
@@ -262,11 +263,12 @@ RESPONDE SOLO CON ESTE FORMATO JSON (sin markdown, sin bloques de código):
   "poem": {"title": "título", "author": "autor", "text": "texto del poema"}
 }`;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const responseText = await callDeepSeek([
+      { role: 'user', content: prompt }
+    ], 0.9);
     
     // Extract JSON from response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON found in response');
     
     const parsed = JSON.parse(jsonMatch[0]);
@@ -291,34 +293,31 @@ RESPONDE SOLO CON ESTE FORMATO JSON (sin markdown, sin bloques de código):
 // ============= BREATHING GUIDE =============
 export async function generateBreathingGuide(): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ 
-      model: 'gemini-2.0-flash-exp'
-    });
-
     const prompt = `Genera una guía breve de respiración 4-4-4-4 (inhala 4, retén 4, exhala 4, retén 4).
 Usa lenguaje calmado, presente, en segunda persona.
 Máximo 50 palabras.
 No uses asteriscos ni formato markdown.
 Ejemplo: "Inhala profundamente por la nariz... dos... tres... cuatro. Retén el aire, siente la calma. Exhala lentamente por la boca, liberando tensión. Retén en el vacío, estás a salvo."`;
 
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim();
+    const responseText = await callDeepSeek([
+      { role: 'user', content: prompt }
+    ], 0.7);
+    
+    return responseText.trim();
   } catch (error) {
     console.error('Breathing guide error:', error);
     return 'Inhala profundamente... dos... tres... cuatro. Retén el aire. Exhala suavemente... liberando tensión. Retén. Estás a salvo.';
   }
 }
 
-// ============= welcome PHRASE =============
+// ============= WELCOME PHRASE =============
 export async function getWelcomePhrase(): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
-    const result = await model.generateContent(
-      'Genera UNA frase corta de bienvenida para una app de bienestar emocional. Máximo 10 palabras. Sin comillas. En español.'
-    );
+    const responseText = await callDeepSeek([
+      { role: 'user', content: 'Genera UNA frase corta de bienvenida para una app de bienestar emocional. Máximo 10 palabras. Sin comillas. En español.' }
+    ], 0.8);
     
-    return result.response.text().trim();
+    return responseText.trim();
   } catch (error) {
     console.error('Welcome phrase error:', error);
     return 'Bienvenido a tu espacio de calma.';
@@ -328,15 +327,16 @@ export async function getWelcomePhrase(): Promise<string> {
 // ============= POEM GENERATOR FOR SELF-WORTH =============
 export async function generateSelfWorthPoem(): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
     const prompt = `Escribe un poema en prosa muy corto (máx 60 palabras) dirigido a alguien que siente que "no es suficiente". 
 Tono cálido, cercano, no condescendiente. 
 Sin asteriscos ni formato markdown.
 En español.`;
 
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim();
+    const responseText = await callDeepSeek([
+      { role: 'user', content: prompt }
+    ], 0.9);
+    
+    return responseText.trim();
   } catch (error) {
     console.error('Poem generation error:', error);
     return 'Eres suficiente tal como eres. No necesitas ser más ni menos. Tu existencia tiene valor por sí misma.';
