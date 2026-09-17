@@ -40,25 +40,27 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/api\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          }
-        ]
+        navigateFallbackDenylist: [/^\/api/]
       }
     })
   ],
+  server: {
+    proxy: {
+      '/api/nim': {
+        target: 'https://integrate.api.nvidia.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/nim/, ''),
+        configure: (proxy, _options) => {
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            // NVIDIA NIM WAF blocks browser requests with localhost Origin.
+            // We strip these headers so it looks like a server-to-server request (like Python).
+            proxyReq.removeHeader('origin');
+            proxyReq.removeHeader('referer');
+          });
+        }
+      }
+    }
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src')

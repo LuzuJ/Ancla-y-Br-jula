@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { getWelcomePhrase } from '@/infrastructure/api/gemini';
+import React, { useState, useEffect } from 'react';
+import { useAuthStore } from '@/application/store';
 
 interface OnboardingProps {
   onComplete: () => void;
@@ -8,15 +8,19 @@ interface OnboardingProps {
 const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
   const [step, setStep] = useState(1);
   const [welcomePhrase, setWelcomePhrase] = useState('');
+  const [name, setName] = useState('');
+  const { signUpLocal } = useAuthStore();
 
-  useState(() => {
-    getWelcomePhrase().then(setWelcomePhrase);
-  });
+  useEffect(() => {
+    // Solo un pequeño fallback visual si Gemini falla, pero idealmente BYOK ya debe estar. 
+    // Como aún no han configurado API, quizás falle. Mejor hardcodear algo gentil.
+    setWelcomePhrase('Tu espacio de calma interior');
+  }, []);
 
   const slides = [
     {
       title: 'Ancla y Brújula',
-      subtitle: welcomePhrase || 'Tu espacio de calma interior',
+      subtitle: welcomePhrase,
       icon: (
         <svg className="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
@@ -35,44 +39,41 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
       description: 'Conversa con Ancla para reestructurar pensamientos negativos y gestionar ansiedad usando lógica y empatía.'
     },
     {
-      title: 'Ejercicios de Respiración',
-      subtitle: 'Calma instantánea',
-      icon: (
-        <svg className="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      description: 'Practica respiración 4-4-4-4 con guía visual y de voz para activar tu sistema nervioso parasimpático.'
-    },
-    {
-      title: 'La Bóveda',
-      subtitle: 'Evidencias de tu valor',
+      title: 'Privacidad Absoluta',
+      subtitle: 'Tus datos son tuyos',
       icon: (
         <svg className="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
         </svg>
       ),
-      description: 'Guarda logros, cumplidos y evidencias que demuestran tu valor. Hechos, no opiniones.'
+      description: 'Ancla funciona de manera 100% local. Tu diario y emociones nunca se envían a la nube.'
     },
     {
-      title: 'Bitácora y Brújula',
-      subtitle: 'Tu diario y contenido diario',
+      title: '¿Cómo te llamas?',
+      subtitle: 'Para personalizar tu experiencia',
       icon: (
         <svg className="w-20 h-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
       ),
-      description: 'Escribe tu diario emocional y descubre contenido curado diariamente: citas, música, arte y poesía.'
+      description: 'Ingresa tu nombre o un apodo. Esto se guardará únicamente en este dispositivo.',
+      isInput: true
     }
   ];
 
   const currentSlide = slides[step - 1];
 
+  const handleComplete = async () => {
+    const finalName = name.trim() || 'Amigo';
+    await signUpLocal(finalName);
+    onComplete();
+  };
+
   return (
     <div className="min-h-screen bg-calm-900 flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-12 animate-fade-in">
-          <div className="text-calm-accent mb-8">
+          <div className="text-calm-accent mb-8 flex justify-center">
             {currentSlide.icon}
           </div>
           <h2 className="text-3xl font-light text-white tracking-widest mb-2">
@@ -81,9 +82,26 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
           <p className="text-calm-highlight text-sm mb-8">
             {currentSlide.subtitle}
           </p>
-          <p className="text-gray-400 leading-relaxed">
-            {currentSlide.description}
-          </p>
+          
+          {currentSlide.isInput ? (
+            <div className="mb-8 px-4">
+              <p className="text-gray-400 leading-relaxed mb-4">
+                {currentSlide.description}
+              </p>
+              <input 
+                type="text" 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Tu nombre..."
+                className="w-full bg-calm-800 border border-calm-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-calm-accent text-center"
+                autoFocus
+              />
+            </div>
+          ) : (
+            <p className="text-gray-400 leading-relaxed">
+              {currentSlide.description}
+            </p>
+          )}
         </div>
 
         {/* Dots */}
@@ -114,7 +132,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
               if (step < slides.length) {
                 setStep(step + 1);
               } else {
-                onComplete();
+                handleComplete();
               }
             }}
             className="flex-1 py-3 bg-calm-accent text-calm-900 rounded-xl font-medium hover:bg-teal-300 transition-colors"
@@ -122,15 +140,6 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete }) => {
             {step < slides.length ? 'Siguiente' : 'Comenzar'}
           </button>
         </div>
-
-        {step === 1 && (
-          <button
-            onClick={onComplete}
-            className="w-full mt-4 text-sm text-gray-500 hover:text-gray-400 transition-colors"
-          >
-            Saltar introducción
-          </button>
-        )}
       </div>
     </div>
   );

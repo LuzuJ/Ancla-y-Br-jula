@@ -1,8 +1,12 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import type { JournalEntry, VaultEntry, ChatMessage, DailyContent } from '@/domain/models';
+import type { UserProfile, JournalEntry, VaultEntry, ChatMessage, DailyContent } from '@/domain/models';
 
 // ============= DATABASE SCHEMA =============
 interface AnclaDB extends DBSchema {
+  user_profiles: {
+    key: string;
+    value: UserProfile;
+  };
   journal_entries: {
     key: string;
     value: JournalEntry;
@@ -22,16 +26,6 @@ interface AnclaDB extends DBSchema {
     key: string;
     value: DailyContent;
   };
-  pending_sync: {
-    key: string;
-    value: {
-      id: string;
-      table: string;
-      action: 'create' | 'update' | 'delete';
-      data: any;
-      timestamp: string;
-    };
-  };
 }
 
 let db: IDBPDatabase<AnclaDB> | null = null;
@@ -40,35 +34,35 @@ let db: IDBPDatabase<AnclaDB> | null = null;
 export async function initDB(): Promise<IDBPDatabase<AnclaDB>> {
   if (db) return db;
 
-  db = await openDB<AnclaDB>('ancla-y-brujula', 1, {
-    upgrade(db) {
-      // Journal entries
+  db = await openDB<AnclaDB>('ancla-y-brujula-local', 2, {
+    upgrade(db, _oldVersion, _newVersion, _transaction) {
+      if (!db.objectStoreNames.contains('user_profiles')) {
+        db.createObjectStore('user_profiles', { keyPath: 'id' });
+      }
+
       if (!db.objectStoreNames.contains('journal_entries')) {
         const journalStore = db.createObjectStore('journal_entries', { keyPath: 'id' });
         journalStore.createIndex('by-date', 'date');
         journalStore.createIndex('by-user', 'user_id');
       }
 
-      // Vault entries
       if (!db.objectStoreNames.contains('vault_entries')) {
         const vaultStore = db.createObjectStore('vault_entries', { keyPath: 'id' });
         vaultStore.createIndex('by-user', 'user_id');
       }
 
-      // Chat messages
       if (!db.objectStoreNames.contains('chat_messages')) {
         const chatStore = db.createObjectStore('chat_messages', { keyPath: 'id' });
         chatStore.createIndex('by-timestamp', 'timestamp');
       }
 
-      // Daily content
       if (!db.objectStoreNames.contains('daily_content')) {
         db.createObjectStore('daily_content', { keyPath: 'date' });
       }
 
-      // Pending sync queue
-      if (!db.objectStoreNames.contains('pending_sync')) {
-        db.createObjectStore('pending_sync', { keyPath: 'id' });
+      // Cleanup old sync queue if it existed from V1
+      if (db.objectStoreNames.contains('pending_sync' as any)) {
+        db.deleteObjectStore('pending_sync' as any);
       }
     },
   });
@@ -76,11 +70,25 @@ export async function initDB(): Promise<IDBPDatabase<AnclaDB>> {
   return db;
 }
 
+// ============= PROFILE OFFLINE =============
+export const offlineProfile = {
+  async get(id: string = 'local_user'): Promise<UserProfile | undefined> {
+    const database = await initDB();
+    return database.get('user_profiles', id);
+  },
+
+  async save(profile: UserProfile): Promise<void> {
+    const database = await initDB();
+    await database.put('user_profiles', profile);
+  }
+};
+
 // ============= JOURNAL OFFLINE =============
 export const offlineJournal = {
   async getAll(): Promise<JournalEntry[]> {
     const database = await initDB();
-    return database.getAll('journal_entries');
+    const entries = await database.getAll('journal_entries');
+    return entries.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   },
 
   async getByDate(startDate: string, endDate: string): Promise<JournalEntry[]> {
@@ -91,29 +99,12 @@ export const offlineJournal = {
 
   async add(entry: JournalEntry): Promise<void> {
     const database = await initDB();
-    await database.add('journal_entries', entry);
-    
-    // Add to sync queue
-    await database.add('pending_sync', {
-      id: `journal-${entry.id}`,
-      table: 'journal_entries',
-      action: 'create',
-      data: entry,
-      timestamp: new Date().toISOString()
-    });
+    await database.put('journal_entries', entry);
   },
 
   async delete(id: string): Promise<void> {
     const database = await initDB();
     await database.delete('journal_entries', id);
-
-    await database.add('pending_sync', {
-      id: `journal-delete-${id}`,
-      table: 'journal_entries',
-      action: 'delete',
-      data: { id },
-      timestamp: new Date().toISOString()
-    });
   },
 
   async clear(): Promise<void> {
@@ -126,33 +117,18 @@ export const offlineJournal = {
 export const offlineVault = {
   async getAll(): Promise<VaultEntry[]> {
     const database = await initDB();
-    return database.getAll('vault_entries');
+    const entries = await database.getAll('vault_entries');
+    return entries.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   },
 
   async add(entry: VaultEntry): Promise<void> {
     const database = await initDB();
-    await database.add('vault_entries', entry);
-
-    await database.add('pending_sync', {
-      id: `vault-${entry.id}`,
-      table: 'vault_entries',
-      action: 'create',
-      data: entry,
-      timestamp: new Date().toISOString()
-    });
+    await database.put('vault_entries', entry);
   },
 
   async delete(id: string): Promise<void> {
     const database = await initDB();
     await database.delete('vault_entries', id);
-
-    await database.add('pending_sync', {
-      id: `vault-delete-${id}`,
-      table: 'vault_entries',
-      action: 'delete',
-      data: { id },
-      timestamp: new Date().toISOString()
-    });
   },
 
   async clear(): Promise<void> {
@@ -165,12 +141,13 @@ export const offlineVault = {
 export const offlineChat = {
   async getAll(): Promise<ChatMessage[]> {
     const database = await initDB();
-    return database.getAll('chat_messages');
+    const messages = await database.getAll('chat_messages');
+    return messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   },
 
   async add(message: ChatMessage): Promise<void> {
     const database = await initDB();
-    await database.add('chat_messages', message);
+    await database.put('chat_messages', message);
   },
 
   async clear(): Promise<void> {
@@ -198,47 +175,7 @@ export const offlineContent = {
   }
 };
 
-// ============= SYNC QUEUE =============
-export const syncQueue = {
-  async getPending(): Promise<any[]> {
-    const database = await initDB();
-    return database.getAll('pending_sync');
-  },
-
-  async remove(id: string): Promise<void> {
-    const database = await initDB();
-    await database.delete('pending_sync', id);
-  },
-
-  async clear(): Promise<void> {
-    const database = await initDB();
-    await database.clear('pending_sync');
-  }
-};
-
-// ============= SYNC MANAGER =============
-export async function syncWithSupabase(
-  uploadFn: (item: any) => Promise<void>
-): Promise<{ synced: number; failed: number }> {
-  const pending = await syncQueue.getPending();
-  let synced = 0;
-  let failed = 0;
-
-  for (const item of pending) {
-    try {
-      await uploadFn(item);
-      await syncQueue.remove(item.id);
-      synced++;
-    } catch (error) {
-      console.error(`Sync failed for ${item.id}:`, error);
-      failed++;
-    }
-  }
-
-  return { synced, failed };
-}
-
-// ============= NETWORK STATUS =============
+// ============= NETWORK STATUS (Kept for UI reasons) =============
 export function isOnline(): boolean {
   return navigator.onLine;
 }
