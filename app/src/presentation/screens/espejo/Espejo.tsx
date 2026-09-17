@@ -151,14 +151,25 @@ const Espejo: React.FC<EspejoProps> = ({ onOpenVault }) => {
             ASISTENCIA INMEDIATA REQUERIDA
           </h3>
           <p className="text-rose-100 text-xs mb-3">Por favor, contacta a un servicio de apoyo profesional gratuito:</p>
-          <div className="space-y-2">
-            {EMERGENCY_CONTACTS.map((contact, index) => (
-              <div key={index} className="bg-calm-900/80 p-3 rounded-xl border border-rose-900/40 text-xs">
-                <div className="text-white font-medium mb-0.5">{contact.name}</div>
-                <div className="text-calm-accent text-base font-bold font-mono">{contact.phone}</div>
-                <div className="text-gray-400 text-xs">{contact.description}</div>
-              </div>
-            ))}
+          <div className="space-y-2.5">
+            {EMERGENCY_CONTACTS.map((contact, index) => {
+              const cleanPhone = contact.phone.replace(/[^\d+]/g, '');
+              return (
+                <div key={index} className="bg-calm-900/90 p-3.5 rounded-xl border border-rose-900/40 text-xs flex items-center justify-between">
+                  <div>
+                    <div className="text-white font-medium text-sm mb-0.5">{contact.name}</div>
+                    <div className="text-gray-300 text-xs">{contact.description}</div>
+                  </div>
+                  <a
+                    href={`tel:${cleanPhone}`}
+                    className="px-3 py-1.5 rounded-lg bg-teal-950/80 hover:bg-teal-900 border border-calm-accent/60 text-calm-accent text-sm font-bold font-mono shrink-0 ml-3 flex items-center gap-1.5 shadow-sm"
+                  >
+                    <span>📞</span>
+                    <span>{contact.phone}</span>
+                  </a>
+                </div>
+              );
+            })}
           </div>
           <button
             onClick={() => setShowEmergency(false)}

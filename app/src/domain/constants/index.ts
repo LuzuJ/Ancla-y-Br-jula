@@ -5,22 +5,27 @@
  * Business logic constants and configuration
  */
 
-// ============= EMERGENCY CONTACTS =============
+// ============= EMERGENCY CONTACTS (ECUADOR) =============
 export const EMERGENCY_CONTACTS = [
   {
-    name: 'Línea de la Vida (México)',
-    phone: '800 911 2000',
-    description: 'Apoyo psicológico 24/7'
-  },
-  {
-    name: 'Saptel',
-    phone: '55 5259 8121',
-    description: 'Atención psicológica telefónica'
-  },
-  {
-    name: 'Emergencias',
+    name: 'ECU 911 (Ecuador)',
     phone: '911',
-    description: 'Servicios de emergencia'
+    description: 'Emergencias y soporte en crisis psicológicas 24/7 a nivel nacional'
+  },
+  {
+    name: 'Línea 171 - Salud Mental (MSP)',
+    phone: '171 (Opción 6)',
+    description: 'Atención psicológica y contención emocional gratuita'
+  },
+  {
+    name: 'Cruz Roja Ecuatoriana',
+    phone: '(02) 258 2482',
+    description: 'Apoyo psicosocial y orientación en situaciones de crisis'
+  },
+  {
+    name: 'Teléfono de la Esperanza Ecuador',
+    phone: '(02) 600 3333',
+    description: 'Prevención del suicidio y escucha activa'
   }
 ] as const;
 
