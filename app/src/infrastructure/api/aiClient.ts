@@ -1,12 +1,14 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { ChatMessage, CognitiveDistortion, DailyContent } from '@/domain/models';
+import type { AIProvider } from '@/domain/constants';
+import { AI_PROVIDERS } from '@/domain/constants';
 import { useSettingsStore } from '@/application/store';
 
-// ============= HELPER TO GET AI INSTANCE =============
+// ============= HELPER TO GET AI INSTANCE (GEMINI) =============
 function getGenAI() {
   const { aiApiKey } = useSettingsStore.getState();
   if (!aiApiKey) throw new Error('API_KEY_MISSING');
-  return new GoogleGenerativeAI(aiApiKey);
+  return new GoogleGenerativeAI(aiApiKey.trim());
 }
 
 // ============= ANCLA TCC SYSTEM PROMPT =============
@@ -76,26 +78,116 @@ export function detectTriggers(text: string): ChatMessage['trigger'] | null {
   return null;
 }
 
-// ============= NVIDIA NIM / OPENAI GENERIC CLIENT =============
-export const VALID_GENERIC_MODELS = [
-  'deepseek-ai/deepseek-v4-flash-0731',
-  'mistralai/mistral-nemotron',
-  'openai/gpt-oss-20b'
-];
-export const DEFAULT_GENERIC_MODEL = 'deepseek-ai/deepseek-v4-flash-0731';
+// ============= URL & ENDPOINT HELPER =============
+export function getEndpointUrl(baseUrl: string, provider: AIProvider): string {
+  if (provider === 'gemini') return '';
+  const trimmed = (baseUrl || '').trim() || (AI_PROVIDERS[provider]?.defaultBaseUrl || '');
+  if (!trimmed) {
+    if (provider === 'deepseek') return 'https://api.deepseek.com/v1/chat/completions';
+    if (provider === 'openai') return 'https://api.openai.com/v1/chat/completions';
+    if (provider === 'groq') return 'https://api.groq.com/openai/v1/chat/completions';
+    if (provider === 'ollama') return 'http://localhost:11434/v1/chat/completions';
+    return '/chat/completions';
+  }
+  const clean = trimmed.replace(/\/+$/, '');
+  if (clean.endsWith('/chat/completions')) return clean;
+  return `${clean}/chat/completions`;
+}
 
-async function fetchGenericAI(
-  systemPrompt: string, 
-  userPrompt: string, 
-  history: {role: string, content: string}[] = [],
+// ============= CONNECTION TEST FUNCTION =============
+export async function testAiConnection(
+  provider: AIProvider,
+  apiKey: string,
+  model: string,
+  baseUrl?: string
+): Promise<{ ok: boolean; message: string; latencyMs: number }> {
+  const start = Date.now();
+  try {
+    if (provider === 'gemini') {
+      if (!apiKey?.trim()) {
+        return { ok: false, message: 'La API Key de Gemini es requerida.', latencyMs: 0 };
+      }
+      const genAI = new GoogleGenerativeAI(apiKey.trim());
+      const genModel = genAI.getGenerativeModel({ model: model || 'gemini-2.0-flash' });
+      const res = await genModel.generateContent('Responde únicamente "OK".');
+      const text = res.response.text();
+      return { 
+        ok: true, 
+        message: `Conexión exitosa con Gemini (${Date.now() - start}ms): "${text.trim().slice(0, 20)}"`, 
+        latencyMs: Date.now() - start 
+      };
+    }
+
+    const endpoint = getEndpointUrl(baseUrl || '', provider);
+    const requiresKey = AI_PROVIDERS[provider]?.requiresKey ?? true;
+    if (requiresKey && !apiKey?.trim()) {
+      return { ok: false, message: `La API Key de ${AI_PROVIDERS[provider]?.name || provider} es requerida.`, latencyMs: 0 };
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    if (apiKey?.trim()) {
+      headers['Authorization'] = `Bearer ${apiKey.trim()}`;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: model || AI_PROVIDERS[provider]?.defaultModel || 'deepseek-chat',
+        messages: [{ role: 'user', content: 'Responde únicamente "OK"' }],
+        max_tokens: 10,
+        temperature: 0.1
+      })
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      let errText = '';
+      try {
+        const errJson = await response.json();
+        errText = errJson.error?.message || JSON.stringify(errJson);
+      } catch {
+        errText = `HTTP ${response.status} ${response.statusText}`;
+      }
+      return { ok: false, message: `Error (${response.status}): ${errText}`, latencyMs: Date.now() - start };
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || 'OK';
+    return { 
+      ok: true, 
+      message: `Conexión exitosa (${Date.now() - start}ms): "${content.trim().slice(0, 20)}"`, 
+      latencyMs: Date.now() - start 
+    };
+  } catch (err: any) {
+    const latency = Date.now() - start;
+    if (err.name === 'AbortError') {
+      return { ok: false, message: 'Tiempo de espera agotado (>12s). Verifica el endpoint o tu conexión.', latencyMs: latency };
+    }
+    return { ok: false, message: err.message || 'Error desconocido al probar conexión.', latencyMs: latency };
+  }
+}
+
+// ============= GENERIC OPENAI-COMPATIBLE RUNNER =============
+async function fetchOpenAICompatible(
+  systemPrompt: string,
+  userPrompt: string,
+  history: { role: string; content: string }[] = [],
   overrideModel?: string
 ): Promise<string> {
-  const { aiApiKey, aiModel } = useSettingsStore.getState();
-  if (!aiApiKey) throw new Error('API_KEY_MISSING');
-  
-  const targetModel = (overrideModel && VALID_GENERIC_MODELS.includes(overrideModel))
-    ? overrideModel
-    : (VALID_GENERIC_MODELS.includes(aiModel) ? aiModel : DEFAULT_GENERIC_MODEL);
+  const { aiApiKey, aiModel, aiProvider, aiBaseUrl } = useSettingsStore.getState();
+  const config = AI_PROVIDERS[aiProvider];
+  if (config?.requiresKey && !aiApiKey?.trim()) throw new Error('API_KEY_MISSING');
+
+  const targetModel = overrideModel || aiModel || config?.defaultModel || 'deepseek-chat';
+  const endpoint = getEndpointUrl(aiBaseUrl, aiProvider);
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -103,34 +195,42 @@ async function fetchGenericAI(
     { role: 'user', content: userPrompt }
   ];
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+  if (aiApiKey?.trim()) {
+    headers['Authorization'] = `Bearer ${aiApiKey.trim()}`;
+  }
+
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
 
   try {
-    const response = await fetch('/api/nim/v1/chat/completions', {
+    const response = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${aiApiKey.trim()}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
+      headers,
       signal: controller.signal,
       body: JSON.stringify({
         model: targetModel,
         messages,
         temperature: 0.8,
-        top_p: 0.95,
-        max_tokens: 1000
+        max_tokens: 1500
       })
     });
 
     if (!response.ok) {
       if (response.status === 429) throw new Error('RATE_LIMIT');
-      throw new Error(`API Error: ${response.status}`);
+      let errMsg = `API Error: ${response.status}`;
+      try {
+        const errJson = await response.json();
+        if (errJson?.error?.message) errMsg = errJson.error.message;
+      } catch {}
+      throw new Error(errMsg);
     }
 
     const data = await response.json();
-    return data.choices[0].message.content;
+    return data.choices?.[0]?.message?.content || '';
   } catch (error: any) {
     if (error.name === 'AbortError') {
       throw new Error('TIMEOUT');
@@ -141,19 +241,19 @@ async function fetchGenericAI(
   }
 }
 
-async function fetchGenericAIStream(
+async function fetchOpenAICompatibleStream(
   systemPrompt: string,
   userPrompt: string,
   history: { role: string; content: string }[] = [],
   onChunk?: (chunk: string, fullText: string) => void,
   overrideModel?: string
 ): Promise<string> {
-  const { aiApiKey, aiModel } = useSettingsStore.getState();
-  if (!aiApiKey) throw new Error('API_KEY_MISSING');
+  const { aiApiKey, aiModel, aiProvider, aiBaseUrl } = useSettingsStore.getState();
+  const config = AI_PROVIDERS[aiProvider];
+  if (config?.requiresKey && !aiApiKey?.trim()) throw new Error('API_KEY_MISSING');
 
-  const targetModel = (overrideModel && VALID_GENERIC_MODELS.includes(overrideModel))
-    ? overrideModel
-    : (VALID_GENERIC_MODELS.includes(aiModel) ? aiModel : DEFAULT_GENERIC_MODEL);
+  const targetModel = overrideModel || aiModel || config?.defaultModel || 'deepseek-chat';
+  const endpoint = getEndpointUrl(aiBaseUrl, aiProvider);
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -161,34 +261,47 @@ async function fetchGenericAIStream(
     { role: 'user', content: userPrompt }
   ];
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'text/event-stream'
+  };
+  if (aiApiKey?.trim()) {
+    headers['Authorization'] = `Bearer ${aiApiKey.trim()}`;
+  }
+
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 20000);
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const response = await fetch('/api/nim/v1/chat/completions', {
+    const response = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${aiApiKey.trim()}`,
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream'
-      },
+      headers,
       signal: controller.signal,
       body: JSON.stringify({
         model: targetModel,
         messages,
         temperature: 0.8,
-        top_p: 0.95,
-        max_tokens: 1000,
+        max_tokens: 1500,
         stream: true
       })
     });
 
     if (!response.ok) {
       if (response.status === 429) throw new Error('RATE_LIMIT');
-      throw new Error(`API Error: ${response.status}`);
+      let errMsg = `API Error: ${response.status}`;
+      try {
+        const errJson = await response.json();
+        if (errJson?.error?.message) errMsg = errJson.error.message;
+      } catch {}
+      throw new Error(errMsg);
     }
 
-    if (!response.body) throw new Error('ReadableStream not supported');
+    if (!response.body) {
+      const data = await response.json();
+      const text = data.choices?.[0]?.message?.content || '';
+      if (onChunk) onChunk(text, text);
+      return text;
+    }
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder('utf-8');
@@ -216,8 +329,8 @@ async function fetchGenericAIStream(
             fullText += delta;
             if (onChunk) onChunk(delta, fullText);
           }
-        } catch (e) {
-          // Skip malformed chunk
+        } catch {
+          // Ignore incomplete/malformed chunks
         }
       }
     }
@@ -236,30 +349,36 @@ async function fetchGenericAIStream(
 // ============= ANCLA CHAT SERVICE =============
 class AnclaChat {
   private geminiChat: any = null;
-  private genericHistory: {role: string, content: string}[] = [];
-  
+  private conversationHistory: { role: string; content: string }[] = [];
   private currentApiKey: string | null = null;
   private currentModelName: string | null = null;
   private currentProvider: string | null = null;
+  private currentBaseUrl: string | null = null;
 
   private initChat() {
-    const { aiApiKey, aiModel, aiProvider } = useSettingsStore.getState();
-    
+    const { aiApiKey, aiModel, aiProvider, aiBaseUrl } = useSettingsStore.getState();
+
     // Reset if config changed
-    if (this.currentApiKey !== aiApiKey || this.currentModelName !== aiModel || this.currentProvider !== aiProvider) {
+    if (
+      this.currentApiKey !== aiApiKey ||
+      this.currentModelName !== aiModel ||
+      this.currentProvider !== aiProvider ||
+      this.currentBaseUrl !== aiBaseUrl
+    ) {
       this.geminiChat = null;
-      this.genericHistory = [];
-      
+      this.conversationHistory = [];
+
       this.currentApiKey = aiApiKey;
       this.currentModelName = aiModel;
       this.currentProvider = aiProvider;
+      this.currentBaseUrl = aiBaseUrl;
     }
 
     if (this.currentProvider === 'gemini' && !this.geminiChat) {
       if (!aiApiKey) throw new Error('API_KEY_MISSING');
-      const genAI = new GoogleGenerativeAI(aiApiKey);
+      const genAI = new GoogleGenerativeAI(aiApiKey.trim());
       const model = genAI.getGenerativeModel({
-        model: aiModel || 'gemini-2.5-flash',
+        model: aiModel || 'gemini-2.0-flash',
         systemInstruction: ANCLA_SYSTEM_PROMPT,
       });
       this.geminiChat = model.startChat({
@@ -280,20 +399,25 @@ class AnclaChat {
     try {
       this.initChat();
       const { aiProvider } = useSettingsStore.getState();
-      
+
       const trigger = detectTriggers(userMessage);
       const distortions = detectDistortions(userMessage);
-      
+
       let responseText = '';
 
-      if (aiProvider === 'generic') {
-        responseText = await fetchGenericAIStream(ANCLA_SYSTEM_PROMPT, userMessage, this.genericHistory, onChunk);
-        this.genericHistory.push({ role: 'user', content: userMessage });
-        this.genericHistory.push({ role: 'assistant', content: responseText });
-      } else {
+      if (aiProvider === 'gemini') {
         const result = await this.geminiChat.sendMessage(userMessage);
         responseText = result.response.text();
         if (onChunk) onChunk(responseText, responseText);
+      } else {
+        responseText = await fetchOpenAICompatibleStream(
+          ANCLA_SYSTEM_PROMPT,
+          userMessage,
+          this.conversationHistory,
+          onChunk
+        );
+        this.conversationHistory.push({ role: 'user', content: userMessage });
+        this.conversationHistory.push({ role: 'assistant', content: responseText });
       }
 
       let detectedTrigger = trigger;
@@ -319,6 +443,10 @@ class AnclaChat {
         errorMessage = '⚠️ Configura tu API Key en la pantalla de Perfil para usar el chat.';
       } else if (error?.message === 'RATE_LIMIT' || error?.status === 429) {
         errorMessage = 'Límite de solicitudes alcanzado. Espera un momento.';
+      } else if (error?.message === 'TIMEOUT') {
+        errorMessage = 'El servidor de IA tardó demasiado en responder. Por favor reintenta.';
+      } else if (error?.message) {
+        errorMessage = `⚠️ Error de conexión con IA: ${error.message}`;
       }
       return { response: errorMessage, trigger: null, distortions: [] };
     }
@@ -326,18 +454,32 @@ class AnclaChat {
 
   resetChat() {
     this.geminiChat = null;
-    this.genericHistory = [];
+    this.conversationHistory = [];
   }
 }
 
 export const anclaChat = new AnclaChat();
+
+// ============= GENERIC CONTENT GENERATOR =============
+async function generateContentWithProvider(prompt: string): Promise<string> {
+  const { aiProvider, aiModel } = useSettingsStore.getState();
+
+  if (aiProvider === 'gemini') {
+    const genAI = getGenAI();
+    const model = genAI.getGenerativeModel({ model: aiModel || 'gemini-2.0-flash' });
+    const result = await model.generateContent(prompt);
+    return result.response.text().trim();
+  } else {
+    return fetchOpenAICompatible('Eres un asistente útil y empático especializado en bienestar y psicología estoica.', prompt, []);
+  }
+}
 
 // ============= GRANULAR GENERATORS FOR BRÚJULA =============
 export async function generateSingleQuoteWithAi(): Promise<{ quote: string; author: string } | null> {
   try {
     const prompt = `Genera UNA sola cita breve y serena de filosofía estoica o budista para calmar la mente.
 Responde SOLO con formato JSON: {"quote": "texto de la cita", "author": "Nombre Autor"}`;
-    const text = await generateContentWithProvider(prompt, 'gemini-2.5-flash', 'deepseek-ai/deepseek-v4-flash-0731');
+    const text = await generateContentWithProvider(prompt);
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return null;
     const parsed = JSON.parse(match[0]);
@@ -352,7 +494,7 @@ export async function generateSingleMicroActionWithAi(): Promise<string | null> 
   try {
     const prompt = `Genera UNA sola micro-acción psicológica de máximo 30 palabras basada en TCC o Mindfulness para hacer hoy en 2 minutos (ej. grounding, respiración, defusión cognitiva).
 Devuelve SOLO el texto de la acción sin comillas ni títulos.`;
-    const text = await generateContentWithProvider(prompt, 'gemini-2.5-flash', 'deepseek-ai/deepseek-v4-flash-0731');
+    const text = await generateContentWithProvider(prompt);
     return text.trim();
   } catch (err) {
     console.error('Single micro action generation error:', err);
@@ -364,27 +506,13 @@ export async function generateSinglePoemWithAi(): Promise<{ title: string; autho
   try {
     const prompt = `Genera UN poema corto sobre calma y esperanza de máximo 45 palabras.
 Responde SOLO con formato JSON: {"title": "Título", "author": "Autor", "text": "Texto del poema"}`;
-    const text = await generateContentWithProvider(prompt, 'gemini-2.5-flash', 'deepseek-ai/deepseek-v4-flash-0731');
+    const text = await generateContentWithProvider(prompt);
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) return null;
     return JSON.parse(match[0]);
   } catch (err) {
     console.error('Single poem generation error:', err);
     return null;
-  }
-}
-
-// ============= FULL GENERATORS =============
-async function generateContentWithProvider(prompt: string, defaultGeminiModel: string, defaultGenericModel: string): Promise<string> {
-  const { aiProvider, aiModel } = useSettingsStore.getState();
-  
-  if (aiProvider === 'generic') {
-    return fetchGenericAI('Eres un asistente útil y empático.', prompt, [], defaultGenericModel);
-  } else {
-    const genAI = getGenAI();
-    const model = genAI.getGenerativeModel({ model: aiModel || defaultGeminiModel });
-    const result = await model.generateContent(prompt);
-    return result.response.text().trim();
   }
 }
 
@@ -405,7 +533,7 @@ RESPONDE SOLO CON ESTE FORMATO JSON:
   "poem": {"title": "título", "author": "autor", "text": "texto"}
 }`;
 
-    const text = await generateContentWithProvider(prompt, 'gemini-2.5-flash', 'deepseek-ai/deepseek-v4-flash-0731');
+    const text = await generateContentWithProvider(prompt);
     
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No JSON found');
@@ -431,9 +559,7 @@ RESPONDE SOLO CON ESTE FORMATO JSON:
 export async function getWelcomePhrase(): Promise<string> {
   try {
     return await generateContentWithProvider(
-      'Genera UNA frase corta de bienvenida para una app de bienestar emocional. Máx 10 palabras. Sin comillas. En español.',
-      'gemini-2.5-flash',
-      'deepseek-ai/deepseek-v4-flash-0731'
+      'Genera UNA frase corta de bienvenida para una app de bienestar emocional. Máx 10 palabras. Sin comillas. En español.'
     );
   } catch (error) {
     return 'Tu espacio de calma interior';
@@ -448,7 +574,7 @@ Máximo 50 palabras.
 No uses asteriscos ni formato markdown.
 Ejemplo: "Inhala profundamente por la nariz... dos... tres... cuatro. Retén el aire, siente la calma. Exhala lentamente por la boca, liberando tensión. Retén en el vacío, estás a salvo."`;
 
-    return await generateContentWithProvider(prompt, 'gemini-2.5-flash', 'deepseek-ai/deepseek-v4-flash-0731');
+    return await generateContentWithProvider(prompt);
   } catch (error) {
     console.error('Breathing guide error:', error);
     return 'Inhala profundamente... dos... tres... cuatro. Retén el aire. Exhala suavemente... liberando tensión. Retén. Estás a salvo.';
@@ -462,7 +588,7 @@ Tono cálido, cercano, no condescendiente.
 Sin asteriscos ni formato markdown.
 En español.`;
 
-    return await generateContentWithProvider(prompt, 'gemini-2.5-flash', 'mistralai/mistral-nemotron');
+    return await generateContentWithProvider(prompt);
   } catch (error) {
     console.error('Poem generation error:', error);
     return 'Eres suficiente tal como eres. No necesitas ser más ni menos. Tu existencia tiene valor por sí misma.';

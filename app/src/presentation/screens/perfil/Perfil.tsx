@@ -1,6 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useAuthStore, useJournalStore, useVaultStore, useChatStore, useSettingsStore } from '@/application/store';
 import { offlineJournal, offlineVault, offlineChat, offlineProfile } from '@/infrastructure/database/offline';
+import type { AIProvider } from '@/domain/constants';
+import { AI_PROVIDERS } from '@/domain/constants';
+import { testAiConnection } from '@/infrastructure/api/aiClient';
 
 const Perfil: React.FC = () => {
   const { user, signOut, loadUser } = useAuthStore();
@@ -10,12 +13,20 @@ const Perfil: React.FC = () => {
   
   const { 
     soundEnabled, notificationsEnabled, toggleSound, toggleNotifications,
-    aiProvider, aiApiKey, aiModel, updateAiSettings
+    aiProvider, aiApiKey, aiModel, aiBaseUrl, updateAiSettings
   } = useSettingsStore();
 
-  const [localApiKey, setLocalApiKey] = useState(aiApiKey);
-  const [localProvider, setLocalProvider] = useState(aiProvider);
-  const [localModel, setLocalModel] = useState(aiModel);
+  const [localProvider, setLocalProvider] = useState<AIProvider>(aiProvider || 'deepseek');
+  const [localApiKey, setLocalApiKey] = useState(aiApiKey || '');
+  const [localModel, setLocalModel] = useState(aiModel || AI_PROVIDERS[aiProvider || 'deepseek']?.defaultModel || 'deepseek-chat');
+  const [localBaseUrl, setLocalBaseUrl] = useState(aiBaseUrl || AI_PROVIDERS[aiProvider || 'deepseek']?.defaultBaseUrl || '');
+  const [isCustomModel, setIsCustomModel] = useState(
+    !AI_PROVIDERS[localProvider]?.suggestedModels.some(m => m.id === localModel)
+  );
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string; latencyMs?: number } | null>(null);
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
@@ -122,28 +133,42 @@ const Perfil: React.FC = () => {
     }
   };
 
-  const handleProviderChange = (newProvider: 'gemini' | 'generic') => {
+  const handleProviderChange = (newProvider: AIProvider) => {
     setLocalProvider(newProvider);
-    if (newProvider === 'generic') {
-      if (!['deepseek-ai/deepseek-v4-flash-0731', 'mistralai/mistral-nemotron', 'openai/gpt-oss-20b'].includes(localModel)) {
-        setLocalModel('deepseek-ai/deepseek-v4-flash-0731');
-      }
+    setTestResult(null);
+    const config = AI_PROVIDERS[newProvider];
+    setLocalBaseUrl(config?.defaultBaseUrl || '');
+    
+    if (config && config.suggestedModels.length > 0) {
+      setLocalModel(config.defaultModel);
+      setIsCustomModel(false);
     } else {
-      if (!['gemini-2.5-flash', 'gemini-2.0-flash-exp'].includes(localModel)) {
-        setLocalModel('gemini-2.5-flash');
-      }
+      setLocalModel('');
+      setIsCustomModel(true);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setTestResult(null);
+    try {
+      const result = await testAiConnection(localProvider, localApiKey, localModel, localBaseUrl);
+      setTestResult(result);
+    } catch (err: any) {
+      setTestResult({ ok: false, message: err.message || 'Error al conectar' });
+    } finally {
+      setTestingConnection(false);
     }
   };
 
   const saveAiSettings = () => {
-    const finalModel = localProvider === 'generic' 
-      ? (['deepseek-ai/deepseek-v4-flash-0731', 'mistralai/mistral-nemotron', 'openai/gpt-oss-20b'].includes(localModel) ? localModel : 'deepseek-ai/deepseek-v4-flash-0731')
-      : (['gemini-2.5-flash', 'gemini-2.0-flash-exp'].includes(localModel) ? localModel : 'gemini-2.5-flash');
-      
-    updateAiSettings(localProvider as 'gemini' | 'generic', localApiKey.trim(), finalModel);
+    const finalModel = localModel.trim() || AI_PROVIDERS[localProvider]?.defaultModel || 'deepseek-chat';
+    updateAiSettings(localProvider, localApiKey.trim(), finalModel, localBaseUrl.trim());
     setLocalModel(finalModel);
     showToast('Configuración de IA guardada con éxito.');
   };
+
+  const currentProviderConfig = AI_PROVIDERS[localProvider] || AI_PROVIDERS.deepseek;
 
   return (
     <div className="h-full overflow-y-auto bg-calm-900 pb-24">
@@ -185,12 +210,12 @@ const Perfil: React.FC = () => {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="mx-6 mt-4 p-3.5 rounded-xl bg-teal-950/90 border border-calm-accent/50 text-teal-200 text-xs sm:text-sm flex items-center justify-between animate-fade-in shadow-md">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-calm-accent text-calm-900 px-5 py-3 rounded-2xl shadow-2xl font-semibold text-sm animate-fade-in flex items-center gap-2 border border-teal-300">
           <div className="flex items-center gap-2">
             <span>✨</span>
             <span>{toastMessage}</span>
           </div>
-          <button onClick={() => setToastMessage(null)} className="text-teal-400 hover:text-white text-xs ml-2 font-mono">✕</button>
+          <button onClick={() => setToastMessage(null)} className="text-teal-900 hover:text-white text-xs ml-2 font-mono">✕</button>
         </div>
       )}
 
@@ -198,66 +223,190 @@ const Perfil: React.FC = () => {
         
         {/* IA Settings (BYOK) */}
         <section>
-          <h3 className="text-sm font-semibold text-calm-highlight mb-3 uppercase tracking-widest font-mono">INTELIGENCIA ARTIFICIAL</h3>
-          <div className="bg-calm-800/30 rounded-2xl p-5 border border-calm-700/30 space-y-4">
-            <p className="text-xs text-gray-400 leading-relaxed">
-              Ancla es "Bring Your Own Key" (BYOK). Tu clave API nunca viaja a servidores intermedios y solo se guarda en el almacenamiento local de tu navegador.
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-calm-highlight uppercase tracking-widest font-mono flex items-center gap-2">
+              <span>🤖</span>
+              <span>PROVEEDOR & MODELO IA</span>
+            </h3>
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-teal-950/80 border border-teal-500/40 text-calm-accent font-mono">
+              BYOK (100% Privado)
+            </span>
+          </div>
+
+          <div className="bg-calm-800/40 rounded-2xl p-5 border border-calm-700/40 space-y-4 shadow-sm">
+            <p className="text-xs text-gray-300 leading-relaxed">
+              Elige tu proveedor preferido o conecta cualquier modelo compatible. Tu clave API permanece únicamente en el almacenamiento local de tu navegador y nunca pasa por intermediarios.
             </p>
 
             <div className="space-y-4">
+              {/* Selector de Proveedor */}
               <div>
-                <label className="block text-xs text-calm-highlight mb-1.5 uppercase font-mono">Proveedor</label>
+                <label className="block text-xs text-calm-highlight mb-1.5 uppercase font-mono font-medium">Proveedor de IA</label>
                 <select 
                   value={localProvider}
-                  onChange={(e) => handleProviderChange(e.target.value as 'gemini' | 'generic')}
-                  className="w-full bg-calm-900 border border-calm-700 text-white rounded-xl p-3 text-sm focus:outline-none focus:border-calm-accent"
+                  onChange={(e) => handleProviderChange(e.target.value as AIProvider)}
+                  className="w-full bg-calm-900 border border-calm-700 text-white rounded-xl p-3 text-sm focus:outline-none focus:border-calm-accent transition-colors"
                 >
-                  <option value="generic">NVIDIA NIM (OpenAI-compatible)</option>
-                  <option value="gemini">Google Gemini</option>
+                  <option value="deepseek">DeepSeek (Recomendado · V3 / R1)</option>
+                  <option value="gemini">Google Gemini (Gemini 2.0 Flash / Pro)</option>
+                  <option value="openai">OpenAI (GPT-4o Mini / GPT-4o)</option>
+                  <option value="groq">Groq (Llama 3.3 70B · Ultra rápido)</option>
+                  <option value="ollama">Ollama (Local / Sin internet · 100% privado)</option>
+                  <option value="custom">Personalizado (Cualquier endpoint compatible con OpenAI)</option>
                 </select>
+                <p className="text-xs text-gray-400 mt-1.5 italic">
+                  {currentProviderConfig.tagline}
+                </p>
               </div>
 
+              {/* Selector de Modelo (Sugerido o Manual) */}
               <div>
-                <label className="block text-xs text-calm-highlight mb-1.5 uppercase font-mono">Modelo</label>
-                {localProvider === 'generic' ? (
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs text-calm-highlight uppercase font-mono font-medium">Modelo</label>
+                  {currentProviderConfig.suggestedModels.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomModel(!isCustomModel)}
+                      className="text-xs text-calm-accent hover:underline font-mono"
+                    >
+                      {isCustomModel ? '← Ver modelos sugeridos' : '✏️ Escribir modelo manual'}
+                    </button>
+                  )}
+                </div>
+
+                {!isCustomModel && currentProviderConfig.suggestedModels.length > 0 ? (
                   <select
                     value={localModel}
                     onChange={(e) => setLocalModel(e.target.value)}
-                    className="w-full bg-calm-900 border border-calm-700 text-white rounded-xl p-3 text-sm focus:outline-none focus:border-calm-accent"
+                    className="w-full bg-calm-900 border border-calm-700 text-white rounded-xl p-3 text-sm focus:outline-none focus:border-calm-accent transition-colors font-mono"
                   >
-                    <option value="deepseek-ai/deepseek-v4-flash-0731">DeepSeek v4 Flash (Recomendado, ultra rápido)</option>
-                    <option value="mistralai/mistral-nemotron">Mistral Nemotron (Excelente para chat)</option>
-                    <option value="openai/gpt-oss-20b">GPT-OSS 20B (Ligero y rápido)</option>
+                    {currentProviderConfig.suggestedModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.id})
+                      </option>
+                    ))}
                   </select>
                 ) : (
-                  <select
+                  <input
+                    type="text"
                     value={localModel}
                     onChange={(e) => setLocalModel(e.target.value)}
-                    className="w-full bg-calm-900 border border-calm-700 text-white rounded-xl p-3 text-sm focus:outline-none focus:border-calm-accent"
-                  >
-                    <option value="gemini-2.5-flash">Gemini 2.5 Flash (Gratis, Rápido)</option>
-                    <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash Exp</option>
-                  </select>
+                    placeholder={currentProviderConfig.defaultModel || 'ej: deepseek-chat, gpt-4o, mistral:7b'}
+                    className="w-full bg-calm-900 border border-calm-700 text-white rounded-xl p-3 text-sm focus:outline-none focus:border-calm-accent font-mono"
+                  />
                 )}
               </div>
 
+              {/* Base URL (Para Ollama, Custom o endpoints personalizados) */}
+              {(localProvider === 'custom' || localProvider === 'ollama' || localProvider === 'deepseek' || localProvider === 'openai' || localProvider === 'groq') && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs text-calm-highlight uppercase font-mono font-medium">
+                      Base URL del Endpoint
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setLocalBaseUrl(currentProviderConfig.defaultBaseUrl)}
+                      className="text-xs text-gray-400 hover:text-calm-accent font-mono"
+                    >
+                      Restaurar predeterminada
+                    </button>
+                  </div>
+                  <input 
+                    type="text"
+                    value={localBaseUrl}
+                    onChange={(e) => setLocalBaseUrl(e.target.value)}
+                    placeholder={currentProviderConfig.defaultBaseUrl || 'https://api.tu-servicio.com/v1'}
+                    className="w-full bg-calm-900 border border-calm-700 text-white rounded-xl p-3 text-sm focus:outline-none focus:border-calm-accent font-mono text-xs"
+                  />
+                </div>
+              )}
+
+              {/* API Key */}
               <div>
-                <label className="block text-xs text-calm-highlight mb-1.5 uppercase font-mono">API Key</label>
-                <input 
-                  type="password"
-                  value={localApiKey}
-                  onChange={(e) => setLocalApiKey(e.target.value)}
-                  placeholder="nvapi-..."
-                  className="w-full bg-calm-900 border border-calm-700 text-white rounded-xl p-3 text-sm focus:outline-none focus:border-calm-accent font-mono"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs text-calm-highlight uppercase font-mono font-medium">
+                    API Key {currentProviderConfig.requiresKey ? '(Requerida)' : '(Opcional)'}
+                  </label>
+                  {currentProviderConfig.keyHelpUrl && (
+                    <a
+                      href={currentProviderConfig.keyHelpUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-calm-accent hover:underline flex items-center gap-1 font-mono"
+                    >
+                      <span>Obtener clave</span>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <input 
+                    type={showApiKey ? 'text' : 'password'}
+                    value={localApiKey}
+                    onChange={(e) => setLocalApiKey(e.target.value)}
+                    placeholder={currentProviderConfig.keyPlaceholder}
+                    className="w-full bg-calm-900 border border-calm-700 text-white rounded-xl p-3 pr-12 text-sm focus:outline-none focus:border-calm-accent font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs font-mono p-1"
+                    title={showApiKey ? 'Ocultar clave' : 'Mostrar clave'}
+                  >
+                    {showApiKey ? '🙈 Ocultar' : '👁️ Ver'}
+                  </button>
+                </div>
               </div>
 
-              <button 
-                onClick={saveAiSettings}
-                className="w-full bg-calm-accent text-calm-900 py-3 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider hover:bg-teal-300 transition-all active:scale-98 shadow-md"
-              >
-                Guardar Configuración IA
-              </button>
+              {/* Resultado del Test de Conexión */}
+              {testResult && (
+                <div className={`p-3.5 rounded-xl border text-xs font-mono flex items-start gap-2.5 animate-fade-in ${
+                  testResult.ok 
+                    ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200' 
+                    : 'bg-rose-950/60 border-rose-500/50 text-rose-200'
+                }`}>
+                  <span className="text-base leading-none">{testResult.ok ? '✅' : '❌'}</span>
+                  <div className="flex-1 break-words">
+                    <p className="font-semibold mb-0.5">{testResult.ok ? 'Conexión Exitosa' : 'Fallo en la prueba'}</p>
+                    <p className="opacity-90">{testResult.message}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Botones de Acción */}
+              <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+                <button 
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={testingConnection}
+                  className="flex-1 py-3 px-4 bg-calm-800 hover:bg-calm-700 border border-calm-600/60 text-white rounded-xl text-xs sm:text-sm font-semibold transition-all active:scale-98 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {testingConnection ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-calm-accent border-t-transparent rounded-full animate-spin"></div>
+                      <span>Probando conexión...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>⚡</span>
+                      <span>Probar Conexión</span>
+                    </>
+                  )}
+                </button>
+
+                <button 
+                  type="button"
+                  onClick={saveAiSettings}
+                  className="flex-1 py-3 px-4 bg-calm-accent text-calm-900 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider hover:bg-teal-300 transition-all active:scale-98 shadow-md flex items-center justify-center gap-2"
+                >
+                  <span>💾</span>
+                  <span>Guardar Configuración</span>
+                </button>
+              </div>
             </div>
           </div>
         </section>

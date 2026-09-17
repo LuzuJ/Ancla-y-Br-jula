@@ -2,20 +2,26 @@ import { describe, it, expect } from 'vitest';
 import { 
   detectTriggers, 
   detectDistortions, 
-  VALID_GENERIC_MODELS, 
-  DEFAULT_GENERIC_MODEL 
+  getEndpointUrl
 } from './aiClient';
+import { AI_PROVIDERS } from '@/domain/constants';
 
 describe('AI Client & Cognitive Diagnostics', () => {
-  describe('Model Configurations', () => {
-    it('should include deepseek v4 flash as active model', () => {
-      expect(VALID_GENERIC_MODELS).toContain('deepseek-ai/deepseek-v4-flash-0731');
-      expect(DEFAULT_GENERIC_MODEL).toBe('deepseek-ai/deepseek-v4-flash-0731');
+  describe('Multi-Provider Configurations', () => {
+    it('should include DeepSeek, Gemini, OpenAI, Groq, Ollama and Custom in provider list', () => {
+      expect(AI_PROVIDERS).toHaveProperty('deepseek');
+      expect(AI_PROVIDERS).toHaveProperty('gemini');
+      expect(AI_PROVIDERS).toHaveProperty('openai');
+      expect(AI_PROVIDERS).toHaveProperty('groq');
+      expect(AI_PROVIDERS).toHaveProperty('ollama');
+      expect(AI_PROVIDERS).toHaveProperty('custom');
     });
 
-    it('should not contain deprecated Llama 3.1 models in valid list', () => {
-      expect(VALID_GENERIC_MODELS).not.toContain('meta/llama-3.1-8b-instruct');
-      expect(VALID_GENERIC_MODELS).not.toContain('meta/llama-3.1-70b-instruct');
+    it('should correctly format endpoint URLs', () => {
+      expect(getEndpointUrl('https://api.deepseek.com/v1', 'deepseek')).toBe('https://api.deepseek.com/v1/chat/completions');
+      expect(getEndpointUrl('http://localhost:11434/v1', 'ollama')).toBe('http://localhost:11434/v1/chat/completions');
+      expect(getEndpointUrl('', 'gemini')).toBe('');
+      expect(getEndpointUrl('https://custom.ai/v1/chat/completions', 'custom')).toBe('https://custom.ai/v1/chat/completions');
     });
   });
 
@@ -58,7 +64,7 @@ describe('AI Client & Cognitive Diagnostics', () => {
     });
 
     it('should return null for non-crisis messages', () => {
-      const res = detectTriggers('Hoy tuve un día muy ocupado en el trabajo.');
+      const res = detectTriggers('Hola, hoy tuve un día normal en el trabajo.');
       expect(res).toBeNull();
     });
   });

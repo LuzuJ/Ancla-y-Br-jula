@@ -265,6 +265,9 @@ export const useContentStore = create<ContentStore>((set) => ({
   }
 }));
 
+import type { AIProvider } from '@/domain/constants';
+import { AI_PROVIDERS } from '@/domain/constants';
+
 // ============= APP SETTINGS (INCLUDES BYOK) =============
 interface AppSettings {
   soundEnabled: boolean;
@@ -272,15 +275,24 @@ interface AppSettings {
   darkMode: boolean;
   
   // BYOK Settings
-  aiProvider: 'gemini' | 'generic';
+  aiProvider: AIProvider;
   aiApiKey: string;
   aiModel: string;
+  aiBaseUrl: string;
 
   toggleSound: () => void;
   toggleNotifications: () => void;
   toggleDarkMode: () => void;
-  updateAiSettings: (provider: 'gemini' | 'generic', apiKey: string, model: string) => void;
+  updateAiSettings: (provider: AIProvider, apiKey: string, model: string, baseUrl?: string) => void;
 }
+
+const defaultEnvDeepSeek = import.meta.env.VITE_DEEPSEEK_API_KEY || '';
+const defaultEnvGemini = import.meta.env.VITE_GEMINI_API_KEY || '';
+
+const initialProvider: AIProvider = defaultEnvDeepSeek ? 'deepseek' : (defaultEnvGemini ? 'gemini' : 'deepseek');
+const initialKey = defaultEnvDeepSeek || defaultEnvGemini || '';
+const initialModel = AI_PROVIDERS[initialProvider]?.defaultModel || 'deepseek-chat';
+const initialBaseUrl = AI_PROVIDERS[initialProvider]?.defaultBaseUrl || 'https://api.deepseek.com/v1';
 
 export const useSettingsStore = create<AppSettings>()(
   persist(
@@ -289,18 +301,29 @@ export const useSettingsStore = create<AppSettings>()(
       notificationsEnabled: true,
       darkMode: true,
 
-      aiProvider: 'gemini',
-      aiApiKey: '',
-      aiModel: 'gemini-2.5-flash',
+      aiProvider: initialProvider,
+      aiApiKey: initialKey,
+      aiModel: initialModel,
+      aiBaseUrl: initialBaseUrl,
 
       toggleSound: () => set(state => ({ soundEnabled: !state.soundEnabled })),
       toggleNotifications: () => set(state => ({ notificationsEnabled: !state.notificationsEnabled })),
       toggleDarkMode: () => set(state => ({ darkMode: !state.darkMode })),
       
-      updateAiSettings: (provider, apiKey, model) => set({ aiProvider: provider, aiApiKey: apiKey, aiModel: model })
+      updateAiSettings: (provider, apiKey, model, baseUrl) => {
+        const config = AI_PROVIDERS[provider];
+        const finalBaseUrl = baseUrl !== undefined ? baseUrl : (config?.defaultBaseUrl || '');
+        set({ 
+          aiProvider: provider, 
+          aiApiKey: apiKey, 
+          aiModel: model || config?.defaultModel || 'deepseek-chat',
+          aiBaseUrl: finalBaseUrl
+        });
+      }
     }),
     {
       name: 'ancla-settings'
     }
   )
 );
+
