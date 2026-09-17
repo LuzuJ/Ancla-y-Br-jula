@@ -111,18 +111,18 @@ const Boveda: React.FC = () => {
         <header className="flex justify-between items-center mb-6">
           <button
             onClick={() => setIsAdding(false)}
-            className="text-gray-400 hover:text-white flex items-center gap-2 text-sm"
+            className="px-3.5 py-2 rounded-xl bg-calm-800 hover:bg-calm-700 text-gray-200 flex items-center gap-2 text-sm font-medium transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Cancelar
+            <span>Cancelar</span>
           </button>
-          <h2 className="text-sm font-semibold uppercase text-white tracking-widest font-mono">NUEVA EVIDENCIA</h2>
+          <h2 className="text-sm font-bold uppercase text-white tracking-widest font-mono">NUEVA EVIDENCIA</h2>
           <button
             onClick={handleAdd}
             disabled={!newEntry.title.trim() || !newEntry.evidence.trim()}
-            className="px-4 py-1.5 bg-calm-accent text-calm-900 rounded-lg text-xs font-bold hover:bg-teal-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2 bg-calm-accent text-calm-900 rounded-xl text-sm font-bold uppercase tracking-wider hover:bg-teal-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all active:scale-95"
           >
             Guardar
           </button>
@@ -130,21 +130,21 @@ const Boveda: React.FC = () => {
 
         <div className="flex-1 space-y-6 overflow-y-auto">
           <div>
-            <label className="block text-xs uppercase tracking-wider text-calm-highlight mb-2 font-mono">Tipo de evidencia</label>
-            <div className="grid grid-cols-2 gap-2.5">
+            <label className="block text-xs sm:text-sm uppercase tracking-wider text-calm-highlight mb-2 font-mono font-semibold">Tipo de evidencia</label>
+            <div className="grid grid-cols-2 gap-3">
               {(Object.entries(CATEGORY_LABELS) as [VaultEntry['category'], typeof CATEGORY_LABELS[VaultEntry['category']]][]).map(([key, cat]) => (
                 <button
                   key={key}
                   onClick={() => setNewEntry({ ...newEntry, category: key })}
-                  className={`p-3 rounded-xl border transition-all flex items-center gap-3 ${
+                  className={`p-3.5 rounded-xl border transition-all flex items-center gap-3 ${
                     newEntry.category === key
                       ? 'border-calm-accent bg-calm-800/80 shadow-md text-white'
-                      : 'border-calm-700/40 bg-calm-800/30 text-gray-400 hover:border-calm-600'
+                      : 'border-calm-700/40 bg-calm-800/30 text-gray-300 hover:border-calm-600'
                   }`}
                 >
                   <span className="text-2xl">{cat.icon}</span>
                   <div className="text-left">
-                    <div className="text-xs font-semibold">{cat.label}</div>
+                    <div className="text-sm font-semibold">{cat.label}</div>
                   </div>
                 </button>
               ))}
@@ -152,18 +152,18 @@ const Boveda: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs uppercase tracking-wider text-calm-highlight mb-1.5 font-mono">Título del Hecho</label>
+            <label className="block text-xs sm:text-sm uppercase tracking-wider text-calm-highlight mb-2 font-mono font-semibold">Título del Hecho</label>
             <input
               type="text"
               value={newEntry.title}
               onChange={(e) => setNewEntry({ ...newEntry, title: e.target.value })}
               placeholder="Ej: Entregué el informe a tiempo a pesar de la ansiedad"
-              className="w-full bg-calm-800/60 border border-calm-700/50 rounded-xl px-4 py-3 text-white placeholder-gray-500 text-sm focus:border-calm-accent focus:outline-none"
+              className="w-full bg-calm-800/60 border border-calm-700/50 rounded-xl px-4 py-3.5 text-white placeholder-gray-500 text-sm sm:text-base focus:border-calm-accent focus:outline-none shadow-inner"
             />
           </div>
 
           <div>
-            <label className="block text-xs uppercase tracking-wider text-calm-highlight mb-1.5 font-mono">
+            <label className="block text-xs sm:text-sm uppercase tracking-wider text-calm-highlight mb-2 font-mono font-semibold">
               Evidencia Concreta (Hechos, no opiniones)
             </label>
             <textarea
@@ -171,12 +171,12 @@ const Boveda: React.FC = () => {
               onChange={(e) => setNewEntry({ ...newEntry, evidence: e.target.value })}
               placeholder="Ej: Recibí felicitaciones del equipo. No me rendí y mantuve la calma en la presentación."
               rows={5}
-              className="w-full bg-calm-800/60 border border-calm-700/50 rounded-xl px-4 py-3 text-white placeholder-gray-500 text-sm focus:border-calm-accent focus:outline-none resize-none"
+              className="w-full bg-calm-800/60 border border-calm-700/50 rounded-xl px-4 py-3.5 text-white placeholder-gray-500 text-sm sm:text-base focus:border-calm-accent focus:outline-none resize-none shadow-inner leading-relaxed"
             />
           </div>
 
           <div className="bg-teal-950/40 border border-teal-800/40 rounded-xl p-4">
-            <p className="text-xs text-teal-200/90 leading-relaxed">
+            <p className="text-sm text-teal-200/90 leading-relaxed">
               💡 <strong>Principio TCC:</strong> El síndrome del impostor y la baja autoestima se basan en sesgos cognitivos. La Bóveda es tu repositorio de hechos verificables contra la duda.
             </p>
           </div>

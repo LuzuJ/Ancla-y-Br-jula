@@ -66,18 +66,18 @@ const Bitacora: React.FC = () => {
         <header className="flex justify-between items-center mb-6">
           <button
             onClick={() => setIsEditorOpen(false)}
-            className="text-gray-400 hover:text-white flex items-center gap-2 text-sm"
+            className="px-3.5 py-2 rounded-xl bg-calm-800 hover:bg-calm-700 text-gray-200 flex items-center gap-2 text-sm font-medium transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Cancelar
+            <span>Cancelar</span>
           </button>
-          <h2 className="text-xs font-semibold uppercase text-white tracking-widest font-mono">NUEVA ENTRADA</h2>
+          <h2 className="text-sm font-bold uppercase text-white tracking-widest font-mono">NUEVA ENTRADA</h2>
           <button
             onClick={handleSave}
             disabled={!newEntry.content.trim()}
-            className="px-4 py-1.5 bg-calm-accent text-calm-900 rounded-lg text-xs font-bold hover:bg-teal-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2 bg-calm-accent text-calm-900 rounded-xl text-sm font-bold uppercase tracking-wider hover:bg-teal-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-all active:scale-95"
           >
             Guardar
           </button>
@@ -86,21 +86,21 @@ const Bitacora: React.FC = () => {
         <div className="flex-1 flex flex-col space-y-5 overflow-y-auto">
           {/* Mood Selector */}
           <div>
-            <label className="block text-xs uppercase tracking-wider text-calm-highlight mb-2 font-mono">
+            <label className="block text-xs sm:text-sm uppercase tracking-wider text-calm-highlight mb-2 font-mono font-semibold">
               ¿Cómo te sientes en este instante?
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-2.5">
               {MOOD_OPTIONS.map((mood) => (
                 <button
                   key={mood.key}
                   onClick={() => setNewEntry({ ...newEntry, emotion: mood.key })}
-                  className={`p-2.5 rounded-xl border text-xs font-medium transition-all flex items-center justify-center gap-2 ${
+                  className={`p-3 rounded-xl border text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                     newEntry.emotion === mood.key
                       ? 'border-calm-accent bg-calm-800 text-white shadow-md'
-                      : 'border-calm-700/40 bg-calm-800/30 text-gray-400 hover:border-calm-600'
+                      : 'border-calm-700/40 bg-calm-800/30 text-gray-300 hover:border-calm-600'
                   }`}
                 >
-                  <span className="text-base">{mood.emoji}</span>
+                  <span className="text-lg">{mood.emoji}</span>
                   <span>{mood.label}</span>
                 </button>
               ))}
@@ -110,10 +110,10 @@ const Bitacora: React.FC = () => {
           {/* Intensity Slider */}
           <div className="bg-calm-800/40 p-4 rounded-xl border border-calm-700/40">
             <div className="flex justify-between items-center mb-2">
-              <label className="text-xs uppercase tracking-wider text-calm-highlight font-mono">
+              <label className="text-xs sm:text-sm uppercase tracking-wider text-calm-highlight font-mono font-semibold">
                 Intensidad Emocional
               </label>
-              <span className="text-xs font-mono font-bold text-calm-accent bg-calm-950/60 px-2 py-0.5 rounded border border-calm-800">
+              <span className="text-xs sm:text-sm font-mono font-bold text-calm-accent bg-calm-950/80 px-2.5 py-0.5 rounded border border-calm-800">
                 {newEntry.intensity} / 5
               </span>
             </div>
@@ -123,9 +123,9 @@ const Bitacora: React.FC = () => {
               max="5"
               value={newEntry.intensity}
               onChange={(e) => setNewEntry({ ...newEntry, intensity: parseInt(e.target.value) })}
-              className="w-full h-1.5 bg-calm-700 rounded-lg appearance-none cursor-pointer accent-calm-accent"
+              className="w-full h-2 bg-calm-700 rounded-lg appearance-none cursor-pointer accent-calm-accent"
             />
-            <div className="flex justify-between text-[10px] text-gray-500 mt-1 font-mono">
+            <div className="flex justify-between text-xs text-gray-400 mt-1.5 font-mono">
               <span>1 (Leve)</span>
               <span>3 (Moderada)</span>
               <span>5 (Intensa)</span>
@@ -134,14 +134,14 @@ const Bitacora: React.FC = () => {
 
           {/* Prompt chips */}
           <div>
-            <span className="text-[11px] text-gray-400 block mb-1.5 font-mono uppercase">Inspiración para escribir:</span>
-            <div className="space-y-1">
+            <span className="text-xs text-gray-300 block mb-2 font-mono uppercase font-semibold">Inspiración para escribir:</span>
+            <div className="space-y-1.5">
               {PROMPTS.map((prompt, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => setNewEntry(prev => ({ ...prev, content: prev.content ? `${prev.content}\n\n${prompt}\n` : `${prompt}\n` }))}
-                  className="w-full text-left text-xs text-calm-highlight/80 hover:text-white bg-calm-800/30 hover:bg-calm-800/60 p-2 rounded-lg border border-calm-700/30 transition-colors block truncate"
+                  className="w-full text-left text-xs sm:text-sm text-calm-highlight hover:text-white bg-calm-800/40 hover:bg-calm-800/80 p-3 rounded-xl border border-calm-700/30 transition-colors block"
                 >
                   💬 {prompt}
                 </button>

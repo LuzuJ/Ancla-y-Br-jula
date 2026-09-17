@@ -121,7 +121,7 @@ const Espejo: React.FC<EspejoProps> = ({ onOpenVault }) => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-calm-900 animate-fade-in relative pb-20">
+    <div className="h-full flex flex-col bg-calm-900 animate-fade-in relative">
       {/* Header */}
       <header className="p-4 border-b border-calm-800 flex justify-between items-center bg-calm-900/90 backdrop-blur-md shrink-0">
         <div>
@@ -143,26 +143,28 @@ const Espejo: React.FC<EspejoProps> = ({ onOpenVault }) => {
 
       {/* Emergency Hotline Banner */}
       {showEmergency && (
-        <div className="bg-rose-950/90 border-b border-rose-800 p-4 animate-fade-in shrink-0">
-          <h3 className="text-rose-200 font-bold text-sm mb-1 flex items-center gap-2">
-            <svg className="w-5 h-5 text-rose-400" fill="currentColor" viewBox="0 0 20 20">
+        <div className="bg-rose-950/95 border-b border-rose-800 p-4 sm:p-5 animate-fade-in shrink-0 shadow-xl">
+          <h3 className="text-rose-200 font-bold text-sm sm:text-base mb-1.5 flex items-center gap-2">
+            <svg className="w-5 h-5 text-rose-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
             </svg>
             ASISTENCIA INMEDIATA REQUERIDA
           </h3>
-          <p className="text-rose-100 text-xs mb-3">Por favor, contacta a un servicio de apoyo profesional gratuito:</p>
+          <p className="text-rose-100 text-xs sm:text-sm mb-3.5">
+            Por favor, contacta a un servicio de apoyo profesional gratuito:
+          </p>
           <div className="space-y-2.5">
             {EMERGENCY_CONTACTS.map((contact, index) => {
               const cleanPhone = contact.phone.replace(/[^\d+]/g, '');
               return (
-                <div key={index} className="bg-calm-900/90 p-3.5 rounded-xl border border-rose-900/40 text-xs flex items-center justify-between">
+                <div key={index} className="bg-calm-900/90 p-4 rounded-xl border border-rose-900/50 flex items-center justify-between shadow-sm">
                   <div>
-                    <div className="text-white font-medium text-sm mb-0.5">{contact.name}</div>
-                    <div className="text-gray-300 text-xs">{contact.description}</div>
+                    <div className="text-white font-semibold text-sm sm:text-base mb-0.5">{contact.name}</div>
+                    <div className="text-gray-300 text-xs sm:text-sm">{contact.description}</div>
                   </div>
                   <a
                     href={`tel:${cleanPhone}`}
-                    className="px-3 py-1.5 rounded-lg bg-teal-950/80 hover:bg-teal-900 border border-calm-accent/60 text-calm-accent text-sm font-bold font-mono shrink-0 ml-3 flex items-center gap-1.5 shadow-sm"
+                    className="px-3.5 py-2 rounded-xl bg-teal-950/90 hover:bg-teal-900 border border-calm-accent/60 text-calm-accent text-sm sm:text-base font-bold font-mono shrink-0 ml-3 flex items-center gap-1.5 shadow-md active:scale-95 transition-all"
                   >
                     <span>📞</span>
                     <span>{contact.phone}</span>
@@ -173,9 +175,9 @@ const Espejo: React.FC<EspejoProps> = ({ onOpenVault }) => {
           </div>
           <button
             onClick={() => setShowEmergency(false)}
-            className="mt-3 text-xs text-gray-400 hover:text-white"
+            className="w-full py-3 mt-3.5 rounded-xl bg-calm-900 hover:bg-calm-800 border border-rose-700/60 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-md active:scale-98"
           >
-            Cerrar
+            <span>✕ Cerrar panel de asistencia</span>
           </button>
         </div>
       )}
@@ -186,13 +188,13 @@ const Espejo: React.FC<EspejoProps> = ({ onOpenVault }) => {
           <div className="w-24 h-24 rounded-full bg-teal-500/20 border-2 border-calm-accent flex items-center justify-center mb-6 animate-pulse">
             <span className="text-3xl">🫁</span>
           </div>
-          <h3 className="text-2xl font-light text-white mb-2">Pausa y Respira</h3>
-          <p className="text-calm-highlight text-sm max-w-xs mb-6">
+          <h3 className="text-2xl sm:text-3xl font-light text-white mb-2">Pausa y Respira</h3>
+          <p className="text-calm-highlight text-sm sm:text-base max-w-sm mb-6">
             Inhala despacio en 4 segundos... Sostén en 4... Exhala en 4. Estás a salvo aquí y ahora.
           </p>
           <button
             onClick={() => setShowPanicMode(false)}
-            className="px-6 py-2 bg-calm-accent text-calm-900 font-bold rounded-xl text-xs uppercase tracking-wider hover:bg-teal-300 transition-all"
+            className="px-8 py-3 bg-calm-accent text-calm-900 font-bold rounded-xl text-sm uppercase tracking-wider hover:bg-teal-300 transition-all shadow-lg"
           >
             Volver al Chat
           </button>
@@ -230,23 +232,23 @@ const Espejo: React.FC<EspejoProps> = ({ onOpenVault }) => {
 
               {/* Distortions Pill Tagging */}
               {msg.distortions && msg.distortions.length > 0 && (
-                <div className="mt-3 pt-2.5 border-t border-calm-700/40 flex flex-wrap gap-1.5">
+                <div className="mt-3 pt-2.5 border-t border-calm-700/40 flex flex-wrap gap-2">
                   {msg.distortions.map((dist, index) => (
                     <button
                       key={index}
                       onClick={() => setSelectedDistortion(dist)}
-                      className="text-xs px-2.5 py-1 bg-amber-950/80 hover:bg-amber-900 border border-amber-500/50 rounded-full text-amber-200 font-mono flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+                      className="text-xs sm:text-sm px-3 py-1.5 bg-amber-950/80 hover:bg-amber-900 border border-amber-500/50 rounded-full text-amber-200 font-medium flex items-center gap-1.5 transition-transform active:scale-95 cursor-pointer shadow-sm"
                       title="Toca para ver cómo cuestionar este sesgo"
                     >
                       <span>{DISTORTION_LABELS[dist] || dist}</span>
-                      <span className="text-[10px] opacity-75">ℹ️</span>
+                      <span className="text-xs opacity-80">ℹ️</span>
                     </button>
                   ))}
                 </div>
               )}
 
               {/* Timestamp */}
-              <div className="text-[11px] text-gray-400 mt-2 text-right font-mono">
+              <div className="text-xs text-gray-400 mt-2 text-right font-mono">
                 {new Date(msg.timestamp).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
@@ -269,7 +271,7 @@ const Espejo: React.FC<EspejoProps> = ({ onOpenVault }) => {
               <div className="w-2 h-2 bg-calm-accent rounded-full animate-bounce"></div>
               <div className="w-2 h-2 bg-calm-accent rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
               <div className="w-2 h-2 bg-calm-accent rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-              <span className="text-xs text-calm-highlight ml-2 font-mono">Reflexionando contigo...</span>
+              <span className="text-xs sm:text-sm text-calm-highlight ml-2 font-mono">Reflexionando contigo...</span>
             </div>
           </div>
         )}
@@ -300,7 +302,7 @@ const Espejo: React.FC<EspejoProps> = ({ onOpenVault }) => {
             </svg>
           </button>
         </div>
-        <p className="text-[11px] text-gray-500 mt-1.5 text-center font-mono">
+        <p className="text-xs text-gray-400 mt-2 text-center font-mono">
           Usa ↑ para recuperar tu último mensaje · Espacio privado en tu dispositivo
         </p>
       </div>
@@ -312,38 +314,38 @@ const Espejo: React.FC<EspejoProps> = ({ onOpenVault }) => {
           onClick={() => setSelectedDistortion(null)}
         >
           <div 
-            className="max-w-md w-full bg-calm-900 border border-amber-600/40 rounded-2xl p-6 shadow-2xl space-y-4"
+            className="max-w-lg w-full bg-calm-900 border border-amber-600/40 rounded-2xl p-6 shadow-2xl space-y-4"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-calm-700/60 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">{DISTORTION_GUIDE[selectedDistortion].emoji}</span>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">{DISTORTION_GUIDE[selectedDistortion].emoji}</span>
                 <div>
-                  <h3 className="text-base font-semibold text-white">
+                  <h3 className="text-base sm:text-lg font-bold text-white">
                     {DISTORTION_GUIDE[selectedDistortion].name}
                   </h3>
-                  <span className="text-[11px] text-amber-400 font-mono">Sesgo Cognitivo Detectado</span>
+                  <span className="text-xs text-amber-400 font-mono">Sesgo Cognitivo Detectado</span>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedDistortion(null)}
-                className="text-gray-400 hover:text-white p-1 text-sm"
+                className="text-gray-400 hover:text-white p-2 text-lg rounded-lg hover:bg-calm-800 transition-colors"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-xs text-gray-300 leading-relaxed bg-calm-800/50 p-3 rounded-xl border border-calm-700/40">
+            <p className="text-sm text-gray-200 leading-relaxed bg-calm-800/60 p-4 rounded-xl border border-calm-700/40">
               {DISTORTION_GUIDE[selectedDistortion].description}
             </p>
 
             <div>
-              <h4 className="text-xs uppercase tracking-wider text-calm-accent font-semibold mb-2">
+              <h4 className="text-xs sm:text-sm uppercase tracking-wider text-calm-accent font-semibold mb-2">
                 Preguntas Socráticas para Cuestionarlo:
               </h4>
               <ul className="space-y-2">
                 {DISTORTION_GUIDE[selectedDistortion].socraticQuestions.map((q, idx) => (
-                  <li key={idx} className="text-xs text-gray-300 flex items-start gap-2 bg-calm-950/40 p-2.5 rounded-lg border border-calm-800">
+                  <li key={idx} className="text-sm text-gray-200 flex items-start gap-2 bg-calm-950/40 p-3 rounded-xl border border-calm-800">
                     <span className="text-calm-accent font-bold">•</span>
                     <span>{q}</span>
                   </li>
@@ -351,21 +353,21 @@ const Espejo: React.FC<EspejoProps> = ({ onOpenVault }) => {
               </ul>
             </div>
 
-            <div className="pt-2 border-t border-calm-700/40 flex gap-2">
+            <div className="pt-3 border-t border-calm-700/40 flex gap-2">
               <button
                 onClick={() => {
                   setInputText(DISTORTION_GUIDE[selectedDistortion].reframeTemplate);
                   setSelectedDistortion(null);
                 }}
-                className="flex-1 py-2 px-3 bg-calm-accent text-calm-900 rounded-xl text-xs font-bold hover:bg-teal-300 transition-all"
+                className="flex-1 py-3 px-4 bg-calm-accent text-calm-900 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider hover:bg-teal-300 transition-all shadow-md active:scale-98"
               >
                 Usar plantilla de reestructuración
               </button>
               <button
                 onClick={() => setSelectedDistortion(null)}
-                className="py-2 px-3 bg-calm-800 text-gray-300 rounded-xl text-xs hover:bg-calm-700 transition-colors"
+                className="py-3 px-5 bg-calm-800 hover:bg-calm-700 text-white rounded-xl text-xs sm:text-sm font-semibold transition-colors"
               >
-                Entendido
+                Cerrar
               </button>
             </div>
           </div>

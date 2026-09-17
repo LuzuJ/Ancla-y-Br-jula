@@ -178,13 +178,13 @@ const Brujula: React.FC = () => {
       <div className="bg-gradient-to-r from-calm-800/80 via-calm-800/40 to-teal-950/40 p-4 rounded-2xl border border-calm-700/50 mb-6 shadow-md">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-calm-accent animate-pulse" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-gray-200">
+            <span className="w-2.5 h-2.5 rounded-full bg-calm-accent animate-pulse" />
+            <span className="text-sm font-semibold uppercase tracking-wider text-gray-200">
               Paisajes Sonoros Calmantes
             </span>
           </div>
           {activeSound && (
-            <span className="text-[11px] text-calm-accent font-mono animate-fade-in">
+            <span className="text-xs text-calm-accent font-mono animate-fade-in">
               Reproduciendo {activeSound === 'rain' ? 'Lluvia' : activeSound === 'waves' ? 'Olas' : activeSound === 'alpha' ? 'Ondas Alfa 10Hz' : 'Cuenco Zen'}
             </span>
           )}
@@ -193,56 +193,56 @@ const Brujula: React.FC = () => {
         <div className="grid grid-cols-4 gap-2 mb-3">
           <button
             onClick={() => toggleSound('rain')}
-            className={`py-2 px-1 rounded-xl text-xs font-medium flex flex-col items-center gap-1 transition-all ${
+            className={`py-2.5 px-1 rounded-xl text-xs font-medium flex flex-col items-center gap-1.5 transition-all ${
               activeSound === 'rain'
-                ? 'bg-teal-500/20 text-calm-accent border border-calm-accent/60 shadow-inner'
+                ? 'bg-teal-500/20 text-calm-accent border border-calm-accent/60 shadow-inner font-bold'
                 : 'bg-calm-900/60 hover:bg-calm-800 text-gray-300 border border-calm-700/40'
             }`}
           >
-            <span className="text-base">🌧️</span>
-            <span className="text-[10px]">Lluvia</span>
+            <span className="text-lg">🌧️</span>
+            <span className="text-xs">Lluvia</span>
           </button>
 
           <button
             onClick={() => toggleSound('waves')}
-            className={`py-2 px-1 rounded-xl text-xs font-medium flex flex-col items-center gap-1 transition-all ${
+            className={`py-2.5 px-1 rounded-xl text-xs font-medium flex flex-col items-center gap-1.5 transition-all ${
               activeSound === 'waves'
-                ? 'bg-teal-500/20 text-calm-accent border border-calm-accent/60 shadow-inner'
+                ? 'bg-teal-500/20 text-calm-accent border border-calm-accent/60 shadow-inner font-bold'
                 : 'bg-calm-900/60 hover:bg-calm-800 text-gray-300 border border-calm-700/40'
             }`}
           >
-            <span className="text-base">🌊</span>
-            <span className="text-[10px]">Olas</span>
+            <span className="text-lg">🌊</span>
+            <span className="text-xs">Olas</span>
           </button>
 
           <button
             onClick={() => toggleSound('alpha')}
-            className={`py-2 px-1 rounded-xl text-xs font-medium flex flex-col items-center gap-1 transition-all ${
+            className={`py-2.5 px-1 rounded-xl text-xs font-medium flex flex-col items-center gap-1.5 transition-all ${
               activeSound === 'alpha'
-                ? 'bg-teal-500/20 text-calm-accent border border-calm-accent/60 shadow-inner'
+                ? 'bg-teal-500/20 text-calm-accent border border-calm-accent/60 shadow-inner font-bold'
                 : 'bg-calm-900/60 hover:bg-calm-800 text-gray-300 border border-calm-700/40'
             }`}
           >
-            <span className="text-base">🧘</span>
-            <span className="text-[10px]">Alfa 10Hz</span>
+            <span className="text-lg">🧘</span>
+            <span className="text-xs">Alfa 10Hz</span>
           </button>
 
           <button
             onClick={() => toggleSound('zen')}
-            className={`py-2 px-1 rounded-xl text-xs font-medium flex flex-col items-center gap-1 transition-all ${
+            className={`py-2.5 px-1 rounded-xl text-xs font-medium flex flex-col items-center gap-1.5 transition-all ${
               activeSound === 'zen'
-                ? 'bg-teal-500/20 text-calm-accent border border-calm-accent/60 shadow-inner'
+                ? 'bg-teal-500/20 text-calm-accent border border-calm-accent/60 shadow-inner font-bold'
                 : 'bg-calm-900/60 hover:bg-calm-800 text-gray-300 border border-calm-700/40'
             }`}
           >
-            <span className="text-base">🔔</span>
-            <span className="text-[10px]">Campana</span>
+            <span className="text-lg">🔔</span>
+            <span className="text-xs">Campana</span>
           </button>
         </div>
 
         {activeSound && (
-          <div className="flex items-center gap-3 pt-2 border-t border-calm-700/30 animate-fade-in">
-            <span className="text-[11px] text-gray-400">Volumen:</span>
+          <div className="flex items-center gap-3 pt-2.5 border-t border-calm-700/30 animate-fade-in">
+            <span className="text-xs text-gray-300 font-medium">Volumen:</span>
             <input
               type="range"
               min="0"
@@ -250,11 +250,11 @@ const Brujula: React.FC = () => {
               step="0.05"
               value={soundVolume}
               onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-              className="flex-1 accent-calm-accent h-1.5 bg-calm-900 rounded-lg cursor-pointer"
+              className="flex-1 accent-calm-accent h-2 bg-calm-900 rounded-lg cursor-pointer"
             />
             <button
               onClick={() => { ambientSound.stop(); setActiveSound(null); }}
-              className="px-2 py-0.5 rounded bg-red-950/60 hover:bg-red-900/80 border border-red-700/40 text-[10px] text-red-300"
+              className="px-3 py-1 rounded-lg bg-red-950/70 hover:bg-red-900 border border-red-700/50 text-xs text-red-200 font-medium transition-colors"
             >
               Silenciar
             </button>
@@ -513,16 +513,16 @@ const Brujula: React.FC = () => {
                 />
               </div>
             )}
-            <div className="p-5 flex items-center justify-between bg-calm-900">
+            <div className="p-5 flex items-center justify-between bg-calm-900 border-t border-calm-800">
               <div>
-                <h3 className="text-base font-light text-white">{selectedArt.title}</h3>
-                <p className="text-xs text-calm-highlight">{selectedArt.artist}</p>
+                <h3 className="text-lg font-medium text-white">{selectedArt.title}</h3>
+                <p className="text-sm text-calm-highlight mt-0.5">{selectedArt.artist}</p>
               </div>
               <button
                 onClick={() => setSelectedArt(null)}
-                className="px-4 py-1.5 rounded-lg bg-calm-800 hover:bg-calm-700 text-xs text-white transition-colors"
+                className="px-6 py-2.5 rounded-xl bg-calm-800 hover:bg-calm-700 text-sm font-semibold text-white transition-all shadow-md active:scale-95"
               >
-                Cerrar
+                ✕ Cerrar
               </button>
             </div>
           </div>
